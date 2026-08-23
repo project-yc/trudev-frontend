@@ -5,6 +5,10 @@
       "destination": "https://dev.trudev.io/api/$1"
     },
     {
+      "source": "/privacy-policy",
+      "destination": "/privacy-policy.html"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
