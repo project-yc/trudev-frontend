@@ -527,6 +527,7 @@ export default function PipelineScreen() {
             <Button
               type="button"
               variant="outline"
+              onClick={() => navigate('/recruiter/settings')}
               className={cn('ml-4 h-[30px] flex-shrink-0 rounded-[7px] border-transparent bg-surface px-[12px] text-[14px] font-medium text-text-primary hover:bg-surface', NO_FOCUS_RING)}
             >
               Connect ATS
