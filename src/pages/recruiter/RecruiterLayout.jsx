@@ -6,7 +6,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import {
   ChevronRight, FileText, GitBranch, LayoutDashboard,
   Library, ListChecks, Menu, PanelLeftClose, PanelLeftOpen, Plus,
-  Search, Star, User, UserPlus, X,
+  Search, Settings, Star, User, UserPlus, X,
 } from 'lucide-react';
 import { RecruiterThemeProvider } from '../../theme/RecruiterThemeProvider.jsx';
 
@@ -38,6 +38,7 @@ const NAV_GROUPS = [
     label: 'Team',
     items: [
       { to: '/recruiter/invite', icon: UserPlus, label: 'Invite' },
+      { to: '/recruiter/settings', icon: Settings, label: 'Settings' },
     ],
   },
 ];

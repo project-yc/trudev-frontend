@@ -26,7 +26,7 @@ import { cn } from '../../../lib/utils';
 import { getPaginationItems } from '../../../utils/pagination.js';
 
 const PIPELINE_POLL_MS = 10000;
-const ROWS_PER_PAGE_OPTIONS = [5, 10, 25, 50];
+const PAGE_SIZE = 10;
 
 // No border/ring at all on focus — the design reference change on interaction
 // is limited to whatever hover/active styling the control already has.
@@ -162,7 +162,7 @@ function AssessmentSelect({ assessments, selectedId, onSelect }) {
     <Select value={selectedId || ''} onValueChange={onSelect} disabled={assessments.length === 0}>
       <SelectTrigger
         aria-label="Select assessment"
-        className="h-[42px] w-full rounded-[7px] border-[var(--color-pipeline-selected)] bg-surface px-[11px] text-[14px] text-text-primary md:w-[460px]"
+        className="h-[42px] w-full rounded-[7px] border-border-default bg-surface px-[11px] text-[14px] text-text-primary md:w-[460px]"
       >
         <SelectValue placeholder="Select assessment" />
       </SelectTrigger>
@@ -310,7 +310,6 @@ export default function PipelineScreen() {
   const [error, setError] = useState('');
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
   const pollRef = useRef(null);
 
   const loadPipeline = useCallback(async ({ assessmentId, stage, page, size }, { silent } = {}) => {
@@ -340,8 +339,8 @@ export default function PipelineScreen() {
   }, []);
 
   useEffect(() => {
-    loadPipeline({ assessmentId: selectedAssessment, stage: activeTab, page: currentPage, size: pageSize });
-  }, [loadPipeline, selectedAssessment, activeTab, currentPage, pageSize]);
+    loadPipeline({ assessmentId: selectedAssessment, stage: activeTab, page: currentPage, size: PAGE_SIZE });
+  }, [loadPipeline, selectedAssessment, activeTab, currentPage]);
 
   useEffect(() => {
     setSelectedIds(prev => {
@@ -359,7 +358,7 @@ export default function PipelineScreen() {
     if (shouldPoll && selectedAssessment) {
       pollRef.current = setInterval(() => {
         loadPipeline(
-          { assessmentId: selectedAssessment, stage: activeTab, page: currentPage, size: pageSize },
+          { assessmentId: selectedAssessment, stage: activeTab, page: currentPage, size: PAGE_SIZE },
           { silent: true },
         );
       }, PIPELINE_POLL_MS);
@@ -368,7 +367,7 @@ export default function PipelineScreen() {
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
-  }, [cards, selectedAssessment, activeTab, currentPage, pageSize, loadPipeline]);
+  }, [cards, selectedAssessment, activeTab, currentPage, loadPipeline]);
 
   const selectedAssessmentData = assessments.find(assessment => assessment.id === selectedAssessment) || assessments[0] || null;
 
@@ -389,9 +388,9 @@ export default function PipelineScreen() {
     } catch (err) {
       setError(err.message || 'Failed to update candidate stage');
     } finally {
-      loadPipeline({ assessmentId: selectedAssessment, stage: activeTab, page: currentPage, size: pageSize }, { silent: true });
+      loadPipeline({ assessmentId: selectedAssessment, stage: activeTab, page: currentPage, size: PAGE_SIZE }, { silent: true });
     }
-  }, [loadPipeline, selectedAssessment, activeTab, currentPage, pageSize]);
+  }, [loadPipeline, selectedAssessment, activeTab, currentPage]);
 
   const handleAssessmentSelect = useCallback((id) => {
     setSelectedAssessment(id);
@@ -441,7 +440,7 @@ export default function PipelineScreen() {
 
   const selectedCount = selectedIds.size;
   const candidateCount = stageCounts.all ?? selectedAssessmentData?.total ?? 0;
-  const pageOffset = (currentPage - 1) * pageSize;
+  const pageOffset = (currentPage - 1) * PAGE_SIZE;
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-page font-sans antialiased">
@@ -528,6 +527,7 @@ export default function PipelineScreen() {
             <Button
               type="button"
               variant="outline"
+              onClick={() => navigate('/recruiter/settings')}
               className={cn('ml-4 h-[30px] flex-shrink-0 rounded-[7px] border-transparent bg-surface px-[12px] text-[14px] font-medium text-text-primary hover:bg-surface', NO_FOCUS_RING)}
             >
               Connect ATS
@@ -557,61 +557,40 @@ export default function PipelineScreen() {
           {totalCount > 0 && (
             <div className="mt-4 flex flex-shrink-0 items-center justify-between">
               <p className="text-[13px] text-text-muted">
-                Showing {pageOffset + 1} to {Math.min(pageOffset + pageSize, totalCount)} of {totalCount} candidates
+                Showing {pageOffset + 1} to {Math.min(pageOffset + PAGE_SIZE, totalCount)} of {totalCount} candidates
               </p>
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-[13px] text-text-muted">Rows per page</span>
-                  <Select
-                    value={String(pageSize)}
-                    onValueChange={value => {
-                      setPageSize(Number(value));
-                      setCurrentPage(1);
-                    }}
-                  >
-                    <SelectTrigger className="h-8 w-[72px] rounded-lg border-border-default bg-surface px-2 text-[13px] text-text-primary">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ROWS_PER_PAGE_OPTIONS.map(size => (
-                        <SelectItem key={size} value={String(size)}>{size}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                {totalPages > 1 && (
-                  <Pagination className="mx-0 w-auto justify-end">
-                    <PaginationContent>
-                      <PaginationItem>
-                        <PaginationPrevious
-                          onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                          disabled={currentPage === 1}
-                        />
+              {totalPages > 1 && (
+                <Pagination className="mx-0 w-auto justify-end">
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious
+                        onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                        disabled={currentPage === 1}
+                      />
+                    </PaginationItem>
+                    {paginationItems.map((item, index) => (
+                      <PaginationItem key={`${item}-${index}`}>
+                        {item === 'ellipsis' ? (
+                          <PaginationEllipsis />
+                        ) : (
+                          <PaginationLink
+                            isActive={item === currentPage}
+                            onClick={() => setCurrentPage(item)}
+                          >
+                            {item}
+                          </PaginationLink>
+                        )}
                       </PaginationItem>
-                      {paginationItems.map((item, index) => (
-                        <PaginationItem key={`${item}-${index}`}>
-                          {item === 'ellipsis' ? (
-                            <PaginationEllipsis />
-                          ) : (
-                            <PaginationLink
-                              isActive={item === currentPage}
-                              onClick={() => setCurrentPage(item)}
-                            >
-                              {item}
-                            </PaginationLink>
-                          )}
-                        </PaginationItem>
-                      ))}
-                      <PaginationItem>
-                        <PaginationNext
-                          onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                          disabled={currentPage === totalPages}
-                        />
-                      </PaginationItem>
-                    </PaginationContent>
-                  </Pagination>
-                )}
-              </div>
+                    ))}
+                    <PaginationItem>
+                      <PaginationNext
+                        onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                        disabled={currentPage === totalPages}
+                      />
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+              )}
             </div>
           )}
 
