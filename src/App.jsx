@@ -14,6 +14,7 @@ import ReportsScreen from './pages/recruiter/reports'
 import ReportDetailScreen from './pages/recruiter/ReportDetailScreen'
 import InviteScreen from './pages/recruiter/invite'
 import TeamInviteScreen from './pages/recruiter/invite/TeamInviteScreen'
+import SettingsPage from './pages/recruiter/settings'
 import InviteCandidate from './pages/recruiter/InviteCandidate'
 import InviteRedirect from './pages/candidate/InviteRedirect'
 import CandidateAssessmentCompletePage from './pages/candidate/CandidateAssessmentCompletePage'
@@ -328,6 +329,14 @@ function App() {
           element={
             <ProtectedRoute requiredRole="RECRUITER">
               <RecruiterLayout><ReportDetailScreen /></RecruiterLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/recruiter/settings"
+          element={
+            <ProtectedRoute requiredRole="RECRUITER">
+              <RecruiterLayout><SettingsPage /></RecruiterLayout>
             </ProtectedRoute>
           }
         />
