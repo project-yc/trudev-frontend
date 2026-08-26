@@ -6,9 +6,12 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import {
   ChevronRight, FileText, GitBranch, LayoutDashboard,
   Library, ListChecks, Menu, PanelLeftClose, PanelLeftOpen, Plus,
-  Search, Settings, Star, User, UserPlus, X,
+  LogOut, Search, Settings, Star, User, UserPlus, X,
 } from 'lucide-react';
 import { RecruiterThemeProvider } from '../../theme/RecruiterThemeProvider.jsx';
+import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
+import { useAuth } from '../../auth/authContext';
+import { ROLE_LABELS } from '../../constants/roles';
 
 const NAV_GROUPS = [
   {
@@ -38,15 +41,16 @@ const NAV_GROUPS = [
     label: 'Team',
     items: [
       { to: '/recruiter/invite', icon: UserPlus, label: 'Invite' },
-      { to: '/recruiter/settings', icon: Settings, label: 'Settings' },
     ],
   },
 ];
 
 function LayoutShell({ children }) {
   const navigate = useNavigate();
+  const { role: sessionRole, logout } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
 
   const user = (() => { try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch { return {}; } })();
   const org  = (() => { try { return JSON.parse(localStorage.getItem('org')  || '{}'); } catch { return {}; } })();
@@ -56,6 +60,17 @@ function LayoutShell({ children }) {
   const userName = user?.full_name || user?.name || user?.email || 'Recruiter';
   const avatarUrl = user?.avatar_url || user?.profile_image || user?.photo_url || null;
   const initials = userName.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+  // The context is the authority (it re-reads /me), but it is empty on the
+  // first paint after a reload — localStorage covers that gap so the role
+  // does not flicker in.
+  const roleKey = sessionRole || localStorage.getItem('userRole') || '';
+  const roleLabel = ROLE_LABELS[roleKey] || 'Member';
+
+  const goToSettings = () => {
+    setAccountOpen(false);
+    setMobileOpen(false);
+    navigate('/recruiter/settings');
+  };
 
   const renderSidebarContent = () => (
     <div className="flex h-full flex-col bg-page">
@@ -146,21 +161,57 @@ function LayoutShell({ children }) {
         </nav>
 
         {!collapsed && (
-          <button
-            type="button"
-            className="mt-auto flex h-[50px] w-full items-center gap-[10px] rounded-[10px] border border-[var(--color-sidebar-stroke)] bg-surface px-[10px] text-left shadow-[0_8px_24px_var(--color-sidebar-shadow)]"
-          >
-            <div className="w-[34px] h-[34px] rounded-full bg-surface-muted border border-[var(--color-sidebar-stroke)] flex items-center justify-center overflow-hidden text-[11px] font-bold text-[var(--color-sidebar-muted)] flex-shrink-0">
-              {avatarUrl
-                ? <img src={avatarUrl} alt={userName} className="w-full h-full object-cover" />
-                : initials}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-[13px] leading-[16px] font-semibold text-text-primary truncate">{userName}</p>
-              <p className="text-[11px] leading-[14px] text-[var(--color-sidebar-muted)] truncate">Recruiter</p>
-            </div>
-            <ChevronRight className="w-[18px] h-[18px] text-text-primary flex-shrink-0" strokeWidth={2.4} />
-          </button>
+          <Popover open={accountOpen} onOpenChange={setAccountOpen}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                aria-label="Account menu"
+                className="mt-auto flex h-[50px] w-full items-center gap-[10px] rounded-[10px] border border-[var(--color-sidebar-stroke)] bg-surface px-[10px] text-left shadow-[0_8px_24px_var(--color-sidebar-shadow)] transition-colors hover:bg-surface-hover focus-visible:!outline-none"
+              >
+                <div className="w-[34px] h-[34px] rounded-full bg-surface-muted border border-[var(--color-sidebar-stroke)] flex items-center justify-center overflow-hidden text-[11px] font-bold text-[var(--color-sidebar-muted)] flex-shrink-0">
+                  {avatarUrl
+                    ? <img src={avatarUrl} alt={userName} className="w-full h-full object-cover" />
+                    : initials}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] leading-[16px] font-semibold text-text-primary truncate">{userName}</p>
+                  <p className="text-[10px] leading-[13px] font-semibold uppercase tracking-[0.07em] text-[var(--color-sidebar-muted)] truncate">
+                    {roleLabel}
+                  </p>
+                </div>
+                <ChevronRight
+                  className={`w-[18px] h-[18px] text-text-primary flex-shrink-0 transition-transform ${accountOpen ? '-rotate-90' : ''}`}
+                  strokeWidth={2.4}
+                />
+              </button>
+            </PopoverTrigger>
+
+            {/* Opens upward: the card sits at the bottom of the sidebar, so a
+                downward menu would be clipped by the viewport edge. */}
+            <PopoverContent
+              side="top"
+              align="start"
+              sideOffset={8}
+              className="w-[var(--radix-popover-trigger-width)] min-w-[190px] p-1.5"
+            >
+              <button
+                type="button"
+                onClick={goToSettings}
+                className="flex w-full items-center gap-2.5 rounded-[7px] px-2.5 py-2 text-left text-[13px] font-medium text-text-primary transition-colors hover:bg-surface-muted focus-visible:!outline-none"
+              >
+                <Settings className="h-[15px] w-[15px] text-text-secondary" strokeWidth={1.8} />
+                Settings
+              </button>
+              <button
+                type="button"
+                onClick={() => { setAccountOpen(false); logout(); }}
+                className="flex w-full items-center gap-2.5 rounded-[7px] px-2.5 py-2 text-left text-[13px] font-medium text-error transition-colors hover:bg-error-bg focus-visible:!outline-none"
+              >
+                <LogOut className="h-[15px] w-[15px]" strokeWidth={1.8} />
+                Log out
+              </button>
+            </PopoverContent>
+          </Popover>
         )}
       </div>
     </div>
