@@ -14,6 +14,7 @@ export const ACTIONS = {
   UNLOCK_QUESTION: 'UNLOCK_QUESTION',
   SET_ACTIVE: 'SET_ACTIVE',
   OPEN_ADD_QUESTION_DRAWER: 'OPEN_ADD_QUESTION_DRAWER',
+  OPEN_EDIT_SECTION_DRAWER: 'OPEN_EDIT_SECTION_DRAWER',
   CLEAR_ADD_QUESTION_DRAWER: 'CLEAR_ADD_QUESTION_DRAWER',
   SET_STEP: 'SET_STEP',
   HYDRATE: 'HYDRATE',
@@ -143,10 +144,16 @@ export function assessmentBuilderReducer(state, action) {
       return {
         ...state,
         sections: [...state.sections, newSection],
-        // Jump straight into editing the section's first question (if any)
-        // instead of dropping back to the add-section chooser.
-        activeSection: newSection.id,
-        activeQuestion: items[0]?.id ?? null,
+        // Back to the section picker, NOT into the new question's editor.
+        //
+        // Jumping into the editor made adding a section feel like it had
+        // navigated somewhere: the picker the recruiter was working from
+        // vanished and was replaced by a form for the single question they had
+        // just finished filling in. The outline on the left is the confirmation
+        // that the add worked, and it stays visible either way — so the useful
+        // thing to show on the right is the picker, ready for the next section.
+        activeSection: '__add_section__',
+        activeQuestion: null,
       };
     }
 
@@ -196,10 +203,11 @@ export function assessmentBuilderReducer(state, action) {
             ? { ...s, items: [...s.items, question], expanded: true }
             : s
         ),
-        // Open the newly added question's editor right away instead of
-        // dropping back to the add-section chooser.
-        activeSection: sectionId,
-        activeQuestion: question.id,
+        // Back to the picker for the same reason ADD_SECTION does — the section
+        // is expanded above, so the new question is already visible in the
+        // outline without commandeering the right-hand panel to show it.
+        activeSection: '__add_section__',
+        activeQuestion: null,
       };
     }
 
@@ -293,6 +301,7 @@ export function assessmentBuilderReducer(state, action) {
         activeSection: '__add_section__',
         activeQuestion: null,
         addQuestionDrawerRequest: {
+          mode: 'add_question',
           sectionId: action.payload.sectionId,
           sectionType: action.payload.sectionType,
           // Set when the drawer is being opened to EDIT an existing item rather
@@ -303,6 +312,25 @@ export function assessmentBuilderReducer(state, action) {
           // left the recruiter with an accurate error and no control to act on
           // it — the only escape was deleting the section and starting over.
           editQuestionId: action.payload.editQuestionId ?? null,
+          requestId: crypto.randomUUID(),
+        },
+      };
+
+    // Reopen the drawer on its FIRST step against a section that already
+    // exists, so name / timer / AI level / rubric stay editable after the
+    // section is added. Rides the same `addQuestionDrawerRequest` channel as
+    // OPEN_ADD_QUESTION_DRAWER (one request slot, one effect in the drawer hook
+    // watching it) rather than adding a second, near-identical one.
+    case ACTIONS.OPEN_EDIT_SECTION_DRAWER:
+      return {
+        ...state,
+        activeSection: '__add_section__',
+        activeQuestion: null,
+        addQuestionDrawerRequest: {
+          mode: 'edit_section',
+          sectionId: action.payload.sectionId,
+          sectionType: action.payload.sectionType,
+          editQuestionId: null,
           requestId: crypto.randomUUID(),
         },
       };
