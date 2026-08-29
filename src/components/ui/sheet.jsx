@@ -5,6 +5,20 @@ import { cva } from 'class-variance-authority';
 import { X } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
+/**
+ * How long the close animation runs, in ms.
+ *
+ * Radix keeps the content MOUNTED for the whole exit animation, so anything a
+ * caller resets the instant it sets `open={false}` is visible inside the panel
+ * while it slides away. A drawer that clears its form on close therefore has to
+ * wait this long before clearing it, or the user watches it revert to a blank
+ * form on the way out.
+ *
+ * Must match `.animate-sheet-out-*` in src/index.css. It is exported rather
+ * than duplicated at each call site so there is one number to change.
+ */
+export const SHEET_EXIT_DURATION_MS = 240;
+
 const Sheet = SheetPrimitive.Root;
 const SheetTrigger = SheetPrimitive.Trigger;
 const SheetClose = SheetPrimitive.Close;
@@ -14,8 +28,11 @@ const SheetOverlay = React.forwardRef(({ className, ...props }, ref) => (
   <SheetPrimitive.Overlay
     className={cn(
       'fixed inset-0 z-50 bg-black/40 backdrop-blur-[1px]',
-      'data-[state=open]:animate-in data-[state=closed]:animate-out',
-      'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+      // Real CSS animations from src/index.css. These used to be
+      // tailwindcss-animate's `animate-in` / `fade-in-0`, which compile to
+      // nothing here because the plugin is not installed (`plugins: []` in
+      // tailwind.config.js) — so the overlay popped in and out instantly.
+      'data-[state=open]:animate-sheet-overlay-in data-[state=closed]:animate-sheet-overlay-out',
       className,
     )}
     {...props}
@@ -24,15 +41,22 @@ const SheetOverlay = React.forwardRef(({ className, ...props }, ref) => (
 ));
 SheetOverlay.displayName = SheetPrimitive.Overlay.displayName;
 
+// The slide is a real keyframe animation (src/index.css), not a transition.
+// `transition ease-in-out data-[state=*]:duration-*` was doing nothing: nothing
+// on the panel changed a transitionable property between the open and closed
+// states, and the `slide-in-from-*` classes that were supposed to supply the
+// offset are tailwindcss-animate utilities that this build never generated. The
+// result was a drawer that teleported. `will-change: transform` keeps the panel
+// on its own compositor layer so a tall, scrollable form slides without tearing.
 const sheetVariants = cva(
-  'fixed z-50 flex flex-col gap-0 bg-surface shadow-xl transition ease-in-out data-[state=closed]:duration-200 data-[state=open]:duration-300',
+  'fixed z-50 flex flex-col gap-0 bg-surface shadow-xl will-change-transform',
   {
     variants: {
       side: {
-        top: 'inset-x-0 top-0 border-b border-border-subtle data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top',
-        bottom: 'inset-x-0 bottom-0 border-t border-border-subtle data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom',
-        left: 'inset-y-0 left-0 h-full w-3/4 border-r border-border-subtle data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:max-w-sm',
-        right: 'inset-y-0 right-0 h-full w-full border-l border-border-subtle data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right',
+        top: 'inset-x-0 top-0 border-b border-border-subtle data-[state=open]:animate-sheet-in-top data-[state=closed]:animate-sheet-out-top',
+        bottom: 'inset-x-0 bottom-0 border-t border-border-subtle data-[state=open]:animate-sheet-in-bottom data-[state=closed]:animate-sheet-out-bottom',
+        left: 'inset-y-0 left-0 h-full w-3/4 border-r border-border-subtle data-[state=open]:animate-sheet-in-left data-[state=closed]:animate-sheet-out-left sm:max-w-sm',
+        right: 'inset-y-0 right-0 h-full w-full border-l border-border-subtle data-[state=open]:animate-sheet-in-right data-[state=closed]:animate-sheet-out-right',
       },
     },
     defaultVariants: { side: 'right' },
