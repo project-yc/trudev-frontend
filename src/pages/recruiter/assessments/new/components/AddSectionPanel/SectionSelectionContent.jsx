@@ -46,24 +46,53 @@ export function SectionSelectionContent({ currentStep, onAddSection }) {
             keyboard. `aria-disabled` announces the state, the notice below is
             its description, and the click is refused (with the same reason) by
             the drawer hook's seniority guard. */}
-        <div className="mt-[24px] w-full max-w-[380px]">
+        {/* Three things made this read as an advertisement rather than the fifth
+            section type, and all three are fixed here.
+
+            1. ALIGNMENT. It stopped at 380px while the four real cards below
+               spanned the panel, so it floated over a grid it did not belong to.
+               It is now full width, flush with them.
+            2. NO LABEL. Every card in the grid has a caption underneath naming
+               the section it adds ("MCQ section", "Coding section"). This one
+               had none — nothing outside the artwork said it was a section type
+               at all. It now has the same caption, in the same place, in the
+               same type.
+            3. NO STATES. It is the only choice rendered as a flat <img>; the
+               others are bordered cards whose border darkens on hover. Artwork
+               cannot carry a hover state, so the states live on the wrapper: the
+               border picks up the CTA colour, the card lifts, the shadow
+               deepens. Same gesture as the grid, just larger. */}
+        <div className="mt-[24px] w-full">
           <button
             type="button"
             onClick={() => onAddSection('adaptive', 'AI Adaptive Interview')}
             aria-disabled={adaptiveBlock ? true : undefined}
             aria-describedby={adaptiveBlock ? ADAPTIVE_BLOCK_NOTICE_ID : undefined}
-            className={`block w-full rounded-[10px] text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 ${
+            className={`group block w-full rounded-[12px] border bg-surface p-[4px] text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-assessment-cta)] focus-visible:ring-offset-2 ${
               adaptiveBlock
-                ? 'cursor-not-allowed opacity-50 grayscale'
-                : 'transition-opacity hover:opacity-90'
+                ? 'cursor-not-allowed border-border-default opacity-50 grayscale'
+                : 'cursor-pointer border-border-default transition-all duration-200 hover:-translate-y-[2px] hover:border-[var(--color-assessment-cta)] hover:shadow-modal'
             }`}
           >
             <img
               src={ADAPTIVE_CARD_IMAGE}
-              alt="Artificial Intelligence adaptive interview"
-              className="block w-full select-none"
+              alt=""
+              // The artwork is a 3.7MB SVG. Without a reserved box the card
+              // collapses to its caption until it decodes, and the four cards
+              // below jump ~200px up and then back down. 650x192 is the SVG's
+              // own viewBox.
+              className="block aspect-[650/192] w-full select-none rounded-[9px] bg-surface-muted"
               draggable={false}
             />
+            {/* The card's accessible name now comes from this caption rather
+                than the artwork's `alt`, which is why the image is decorative
+                above — otherwise the button announced its subject twice. */}
+            <span className="flex items-center justify-center gap-[8px] pb-[9px] pt-[10px] text-[13px] font-semibold leading-none text-text-primary">
+              AI Adaptive Interview section
+              <span className="rounded-full bg-[var(--color-assessment-cta)] px-[7px] py-[3px] text-[10px] font-bold uppercase tracking-wide text-[var(--color-assessment-cta-text)]">
+                New
+              </span>
+            </span>
           </button>
 
           {adaptiveBlock && (
