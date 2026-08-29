@@ -1,4 +1,4 @@
-import { ChevronDown, Menu, Plus, Trash2 } from 'lucide-react';
+import { ChevronDown, Menu, Pencil, Plus, Trash2 } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -88,6 +88,24 @@ export function SectionOutlineItem({ section, activeQuestion }) {
     });
   };
 
+  /**
+   * Reopen the creation drawer on its settings step for a section that already
+   * exists.
+   *
+   * Before this, everything asked on that step - the name, the timer, and on a
+   * coding section the AI level and the four rubric weights - was answered once
+   * and then frozen: the outline offered delete and reorder, and the right-hand
+   * panel is a per-question editor with no section-level controls. Renaming a
+   * typo'd section meant deleting it and rebuilding every question in it.
+   */
+  const handleEditSection = (event) => {
+    event.stopPropagation();
+    dispatch({
+      type: ACTIONS.OPEN_EDIT_SECTION_DRAWER,
+      payload: { sectionId: section.id, sectionType: section.type },
+    });
+  };
+
   const handleDeleteSection = (event) => {
     event.stopPropagation();
     if (!window.confirm(`Delete "${section.name || cfg.label}"? This removes all its questions too.`)) return;
@@ -114,7 +132,7 @@ export function SectionOutlineItem({ section, activeQuestion }) {
         tabIndex={0}
         onClick={handleSectionClick}
         onKeyDown={handleSectionKeyDown}
-        className="grid w-full grid-cols-[26px_minmax(0,1fr)_70px] items-start gap-[8px] text-left"
+        className="grid w-full grid-cols-[26px_minmax(0,1fr)_92px] items-start gap-[8px] text-left"
       >
         <img src={icon} alt="" className="mt-[1px] h-[26px] w-[26px] flex-shrink-0" />
 
@@ -128,6 +146,18 @@ export function SectionOutlineItem({ section, activeQuestion }) {
         </span>
 
         <span className="flex items-center justify-end gap-[8px] pt-[5px] text-[var(--color-assessment-step-active)]">
+          <span
+            role="button"
+            tabIndex={0}
+            aria-label={`Edit ${section.name || cfg.label} settings`}
+            onClick={handleEditSection}
+            onKeyDown={event => {
+              if (event.key === 'Enter' || event.key === ' ') handleEditSection(event);
+            }}
+            className="rounded-button text-text-faint transition-colors hover:text-text-primary"
+          >
+            <Pencil className="h-[14px] w-[14px]" strokeWidth={2} />
+          </span>
           <span
             role="button"
             tabIndex={0}
