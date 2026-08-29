@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { getAdaptiveFocusAreas, getLibraryTasks } from '../../api/assessmentBuilderApi';
 import { createMyLibraryItem } from '../../../../../../api/recruiter/taskLibrary';
@@ -9,14 +9,16 @@ import {
   saveLibraryEdit,
 } from '../../../../../../hooks/useLibraryFork';
 import { buildLibraryTypeData } from '../../../../../../lib/libraryTypeData.js';
+import { SHEET_EXIT_DURATION_MS } from '../../../../../../components/ui/sheet';
 import { SECTION_TYPE_CONFIG } from '../../constants/sectionTypeConfig';
 import {
   ADAPTIVE_DEFAULT_TIMER,
   ADAPTIVE_PRESET_OPTIONS,
   CODING_ANCHORED_PRESETS,
   CODING_RUBRIC_DIMENSIONS,
-  DEFAULT_CODING_TASK_INDEX,
-  FALLBACK_CODING_TASKS,
+  DEFAULT_CODING_SECTION_TIMER,
+  DEFAULT_SECTION_TIMER,
+  DIFFICULTY_ANY,
   ROLE_FOCUS_AREAS,
   adaptiveSeniorityBlock,
   assessmentSeniorityOf,
@@ -27,18 +29,30 @@ import {
 } from './constants';
 
 const DRAWER_SECTION_TYPES = ['mcq', 'coding', 'ranking', 'free_text', 'adaptive'];
-const DEFAULT_CODING_FILTERS = { role: 'Front-end developer', language: '', difficulty: 'easy' };
+// Unfiltered. This used to open on `role: 'Front-end developer'` and
+// `difficulty: 'easy'` - two filters the recruiter never set, narrowing a
+// library they had not seen yet. It was invisible while the list fell back to
+// four hardcoded tasks that ignored both; against the real library it hides
+// almost everything on first open (an org whose tasks are all `medium` sees an
+// empty picker), and nothing on screen explains why.
+const DEFAULT_CODING_FILTERS = { role: '', language: '', difficulty: DIFFICULTY_ANY };
 
 // Keyed by backend dimension key, not display label — these are sent to the API.
 const createInitialRubricPoints = () => CODING_RUBRIC_DIMENSIONS.reduce((acc, d) => ({ ...acc, [d.key]: 3 }), {});
 
 export function useSectionCreationDrawer({ dispatch, ACTIONS, state }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // Pending "clear the form now that the panel has finished sliding away".
+  const closeResetTimer = useRef(null);
   const [drawerStep, setDrawerStep] = useState('section');
   const [drawerType, setDrawerType] = useState('mcq');
   const [targetSectionId, setTargetSectionId] = useState(null);
+  // Set when the drawer was opened to edit an EXISTING section's settings
+  // rather than to author a new section or add a question to one. In that mode
+  // the drawer stops at its first step and its primary action saves.
+  const [editingSectionId, setEditingSectionId] = useState(null);
   const [sectionName, setSectionName] = useState('');
-  const [sectionTimer, setSectionTimer] = useState(45);
+  const [sectionTimer, setSectionTimer] = useState(DEFAULT_SECTION_TIMER);
   const [aiLevel, setAiLevel] = useState('chat_only');
   const [questionPrompt, setQuestionPrompt] = useState('');
   const [freeTextAnswer, setFreeTextAnswer] = useState('');
@@ -144,8 +158,9 @@ export function useSectionCreationDrawer({ dispatch, ACTIONS, state }) {
     setDrawerStep('section');
     setDrawerType('mcq');
     setTargetSectionId(null);
+    setEditingSectionId(null);
     setSectionName('');
-    setSectionTimer(45);
+    setSectionTimer(DEFAULT_SECTION_TIMER);
     setAiLevel('chat_only');
     setQuestionPrompt('');
     setFreeTextAnswer('');
@@ -199,6 +214,21 @@ export function useSectionCreationDrawer({ dispatch, ACTIONS, state }) {
     )
   );
 
+  /**
+   * Close the drawer, then clear it — in that order, and not in the same frame.
+   *
+   * Radix keeps `SheetContent` mounted for the length of the exit animation, so
+   * resetting the form at the same moment `open` goes false plays the reset
+   * INSIDE the visible panel: a coding section saved at 60 minutes slid away
+   * having silently turned into a blank "Create MCQ section" at 15, because
+   * `resetDrawerState` restores the type and timer defaults along with
+   * everything else. Nobody saw it before only because there was no exit
+   * animation to see it during (see sheet.jsx — the classes were no-ops).
+   *
+   * The timer is cancelled by `openDrawer`, so reopening inside the animation
+   * window keeps the state it was just given instead of having it wiped a
+   * fraction of a second later.
+   */
   const closeDrawer = ({ confirmDiscard = false } = {}) => {
     if (confirmDiscard && hasAdaptiveWorkInProgress()) {
       const discard = window.confirm(
@@ -207,19 +237,37 @@ export function useSectionCreationDrawer({ dispatch, ACTIONS, state }) {
       );
       if (!discard) return;
     }
-    resetDrawerState();
+    setDrawerOpen(false);
+    clearTimeout(closeResetTimer.current);
+    closeResetTimer.current = setTimeout(resetDrawerState, SHEET_EXIT_DURATION_MS);
   };
+
+  // A drawer closed by unmounting the builder must not leave a timer holding a
+  // setState against a component that is gone.
+  useEffect(() => () => clearTimeout(closeResetTimer.current), []);
 
   const openDrawer = (type, options = {}) => {
     // Guarded here rather than at the card so both entry points are covered —
     // the section picker and "add question" on an adaptive section a hydrated
     // draft already carries.
-    if (type === 'adaptive' && !guardAdaptiveSeniority()) return;
+    //
+    // Editing an existing section is exempt: the section is already in the
+    // outline, and refusing to open its settings would leave the recruiter
+    // unable to rename it or shorten it — the very things that do not depend on
+    // the level. The guard still runs on the create path and inside
+    // `handleCreateAdaptive`, so a blocked level cannot be published.
+    if (type === 'adaptive' && !options.editSection && !guardAdaptiveSeniority()) return;
+
+    // Reopening during the previous close's exit animation: the deferred reset
+    // would otherwise land a fraction of a second later and blank the drawer
+    // that was just configured.
+    clearTimeout(closeResetTimer.current);
 
     setDrawerOpen(true);
     setDrawerType(type);
     setDrawerStep(options.step ?? 'section');
     setTargetSectionId(options.targetSectionId ?? null);
+    setEditingSectionId(options.editSection ? (options.targetSectionId ?? null) : null);
 
     // Reopening an interview to edit it must show the duration it actually
     // runs for, not the default. The adaptive drawer derives the question
@@ -229,13 +277,33 @@ export function useSectionCreationDrawer({ dispatch, ACTIONS, state }) {
     const editedSection = options.targetSectionId
       ? (state.sections || []).find(section => section.id === options.targetSectionId)
       : null;
-    const savedTimer = type === 'adaptive' ? Number(editedSection?.timer_minutes) : NaN;
+    // Editing a section's settings must show what it is actually set to, for
+    // every type — not only adaptive, which is all this covered before, because
+    // adaptive was the only type with an edit entry point at all.
+    const savedTimer = (type === 'adaptive' || options.editSection)
+      ? Number(editedSection?.timer_minutes)
+      : NaN;
+    const defaultTimer = type === 'coding'
+      ? DEFAULT_CODING_SECTION_TIMER
+      : (type === 'adaptive' ? ADAPTIVE_DEFAULT_TIMER : DEFAULT_SECTION_TIMER);
     setSectionTimer(
-      Number.isFinite(savedTimer) && savedTimer > 0
-        ? savedTimer
-        : (type === 'adaptive' ? ADAPTIVE_DEFAULT_TIMER : 45),
+      Number.isFinite(savedTimer) && savedTimer > 0 ? savedTimer : defaultTimer,
     );
-    setAiLevel('chat_only');
+
+    // The section carries the name and (for coding) the AI level; the rubric
+    // weights live on the coding item, because that is where
+    // `buildOverrideConfig` reads them from on the way to the API.
+    const codingItem = (editedSection?.items || []).find(item => item.type === 'coding');
+    setSectionName(options.editSection ? (editedSection?.name || '') : '');
+    setAiLevel(
+      (options.editSection && (editedSection?.ai_level_override || codingItem?.ai_level))
+      || 'chat_only',
+    );
+    setRubricPoints(
+      options.editSection && codingItem?.rubric_weights
+        ? { ...createInitialRubricPoints(), ...codingItem.rubric_weights }
+        : createInitialRubricPoints(),
+    );
     setPoints(type === 'adaptive' ? 100 : 5);
 
     const editItem = options.editItem || null;
@@ -297,6 +365,18 @@ export function useSectionCreationDrawer({ dispatch, ACTIONS, state }) {
     if (!request) return;
     if (!DRAWER_SECTION_TYPES.includes(request.sectionType)) return;
 
+    // Editing the SECTION rather than an item: open on the first step, which is
+    // the only step that shows section name / timer / AI level / rubric.
+    if (request.mode === 'edit_section') {
+      openDrawer(request.sectionType, {
+        step: 'section',
+        targetSectionId: request.sectionId,
+        editSection: true,
+      });
+      dispatch({ type: ACTIONS.CLEAR_ADD_QUESTION_DRAWER });
+      return;
+    }
+
     // An edit request carries the item to prefill from; an add request does not.
     const editing = request.editQuestionId
       ? (state.sections.find(section => section.id === request.sectionId)?.items || [])
@@ -329,7 +409,7 @@ export function useSectionCreationDrawer({ dispatch, ACTIONS, state }) {
       content_type: 'technical_task',
       search: taskSearch.trim() || undefined,
       language: codingFilters.language || undefined,
-      difficulty: codingFilters.difficulty === 'adaptive' ? undefined : codingFilters.difficulty,
+      difficulty: codingFilters.difficulty === DIFFICULTY_ANY ? undefined : codingFilters.difficulty,
     })
       .then(tasks => {
         if (cancelled) return;
@@ -350,7 +430,10 @@ export function useSectionCreationDrawer({ dispatch, ACTIONS, state }) {
   }, [codingFilters.difficulty, codingFilters.language, drawerOpen, drawerStep, drawerType, taskSearch]);
 
   const codingTasks = useMemo(() => {
-    const source = libraryTasks.length > 0 ? libraryTasks : FALLBACK_CODING_TASKS;
+    // The library, or nothing. There is no placeholder list behind this any
+    // more — see the note where FALLBACK_CODING_TASKS used to live in
+    // constants.js.
+    const source = libraryTasks;
     const roleQuery = codingFilters.role.toLowerCase().replace('-end developer', '').replace(' engineer', '').trim();
 
     return source.filter(task => {
@@ -1030,11 +1113,114 @@ export function useSectionCreationDrawer({ dispatch, ACTIONS, state }) {
     commitQuestion(question, 'AI Adaptive Interview');
   };
 
+  /**
+   * Save an existing section's own settings.
+   *
+   * Only the fields the first drawer step actually shows, and only for the type
+   * it shows them for — writing `ai_level`/`rubric_weights` onto a ranking
+   * section would put keys into `override_config_json` that
+   * `SectionItemPatchView` refuses as "only valid on a coding section item".
+   *
+   * The rubric weights live on the coding ITEM, not the section: the builder's
+   * `buildOverrideConfig` reads `item.rubric_weights` and
+   * `SessionReport.compute_overall_score` reads them back out of the section
+   * item's override config. Writing them to the section would put them
+   * somewhere nothing reads — `Section` has no such column.
+   */
+  const handleSaveSectionSettings = () => {
+    if (!editingSectionId) return;
+    const section = (state.sections || []).find(entry => entry.id === editingSectionId);
+    if (!section) return;
+
+    // Only the INCREASE has to fit. The section's current minutes are already
+    // inside `allocatedMinutes`, so checking the whole new timer against what
+    // is left would refuse an edit that SHORTENS the section.
+    const currentTimer = Number(section.timer_minutes) || 0;
+    const added = Number(sectionTimer) - currentTimer;
+    if (added > 0 && added > remainingMinutes) {
+      toast.error('Section timer exceeds remaining time', {
+        description: `Only ${remainingMinutes} min left to allocate.`,
+      });
+      return;
+    }
+
+    dispatch({
+      type: ACTIONS.UPDATE_SECTION,
+      payload: {
+        sectionId: editingSectionId,
+        updates: {
+          name: sectionName.trim() || section.name,
+          timer_minutes: Number(sectionTimer),
+          ...(drawerType === 'coding' ? { ai_level_override: aiLevel || null } : {}),
+        },
+      },
+    });
+
+    if (drawerType === 'coding') {
+      (section.items || [])
+        .filter(item => item.type === 'coding')
+        .forEach(item => dispatch({
+          type: ACTIONS.UPDATE_QUESTION,
+          payload: {
+            sectionId: editingSectionId,
+            questionId: item.id,
+            updates: { ai_level: aiLevel || null, rubric_weights: { ...rubricPoints } },
+          },
+        }));
+    }
+
+    // An adaptive section's timer IS its interview duration, and the question
+    // budget is derived from it. Changing one without the other leaves a stored
+    // `question_count.max` the new duration cannot cover: too high and the
+    // interview overruns its own clock, too low and it ends early. The engine
+    // also raises a bare ValueError when `focusAreas x 2 < max`, which escapes as
+    // a 500 on the candidate's FIRST question rather than as an authoring error,
+    // so this is re-derived and re-clamped here exactly as `handleCreateAdaptive`
+    // does it.
+    if (drawerType === 'adaptive') {
+      (section.items || [])
+        .filter(item => item.type === 'adaptive' && item.adaptive_config)
+        .forEach(item => {
+          const config = item.adaptive_config;
+          const derived = deriveQuestionCount(sectionTimer, config.focus_areas || []);
+          const previousMax = Number(config.question_count?.max);
+          // Keep a deliberate override when the new duration still allows it;
+          // only clamp when it no longer fits.
+          const questionMax = Number.isFinite(previousMax) && previousMax > 0
+            ? Math.min(previousMax, derived.max)
+            : derived.max;
+          dispatch({
+            type: ACTIONS.UPDATE_QUESTION,
+            payload: {
+              sectionId: editingSectionId,
+              questionId: item.id,
+              updates: {
+                adaptive_config: {
+                  ...config,
+                  question_count: {
+                    min: Math.min(derived.min, questionMax),
+                    max: questionMax,
+                  },
+                },
+              },
+            },
+          });
+        });
+    }
+
+    toast.success('Section updated.');
+    closeDrawer();
+  };
+
   return {
     drawer: {
       isOpen: drawerOpen,
       step: drawerStep,
       type: drawerType,
+      // True when the first step is being shown to edit a section that already
+      // exists — the drawer then ends there rather than continuing to a
+      // question form, and its primary action saves instead of advancing.
+      isEditingSection: Boolean(editingSectionId),
       close: closeDrawer,
       // Check the time budget here, not at Add. Reporting it only on submit
       // meant filling in a whole question before being told the section
@@ -1079,6 +1265,11 @@ export function useSectionCreationDrawer({ dispatch, ACTIONS, state }) {
       codingFilters,
       setCodingFilters,
       codingTasks,
+      // Whether the library returned anything AT ALL, as opposed to whether the
+      // current search and filters matched. The empty state has to say which:
+      // "no tasks match your filters" is wrong and unactionable when the org
+      // simply has no coding tasks yet.
+      hasLibraryTasks: libraryTasks.length > 0,
       updateOption,
       toggleCorrectOption,
       removeOption,
@@ -1119,6 +1310,7 @@ export function useSectionCreationDrawer({ dispatch, ACTIONS, state }) {
     },
     actions: {
       addSection: handleAddSection,
+      saveSectionSettings: handleSaveSectionSettings,
       createMcq: handleCreateMcq,
       addFromLibrary: handleAddFromLibrary,
       editLibraryItem: handleEditLibraryItem,
@@ -1129,9 +1321,13 @@ export function useSectionCreationDrawer({ dispatch, ACTIONS, state }) {
         setEditScope(null);
       },
       cancelEditScope: () => setEditScope(null),
-      // The overlay authors questions of the section's own type — opening it
-      // from a ranking section used to hand back MCQs.
-      openCreateOverlay: () => setCreateOverlay({ open: true, type: drawerType }),
+      // "Create custom task" is held back until authoring is finished end to
+      // end. `CreateTaskOverlay` and `handleSaveCreateOverlay` are left wired to
+      // `createOverlay` below so re-enabling this is a one-line change — the
+      // path still works, it is just not offered yet.
+      openCreateOverlay: () => toast.info('Coming soon', {
+        description: 'Custom tasks are still being built. Pick one from the library for now.',
+      }),
       closeCreateOverlay: () => setCreateOverlay(current => ({ ...current, open: false })),
       saveCreateOverlay: handleSaveCreateOverlay,
       createCoding: handleCreateCoding,
