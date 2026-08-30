@@ -5,8 +5,13 @@
 // Rendering editable inputs that silently discard changes would be worse than
 // showing the truth, so the fields are presented as values and the panel says
 // where to go instead.
+import { useState } from 'react';
+
 import { useAuth } from '../../../../auth/authContext';
 import { ROLE_LABELS } from '../../../../constants/roles';
+import { Badge } from '../../../../components/ui/badge';
+import { Button } from '../../../../components/ui/button';
+import { resendVerificationEmail } from '../../../../lib/emailVerification';
 
 function Row({ label, value, mono }) {
   return (
@@ -21,6 +26,13 @@ function Row({ label, value, mono }) {
 
 export function ProfilePanel() {
   const { user, role } = useAuth();
+  const [resending, setResending] = useState(false);
+
+  const handleResend = async () => {
+    setResending(true);
+    await resendVerificationEmail();
+    setResending(false);
+  };
 
   const name = user?.name || user?.full_name || '';
   const avatarUrl = user?.avatar_url || user?.profile_image || null;
@@ -57,6 +69,23 @@ export function ProfilePanel() {
       <div className="mt-4 rounded-[10px] border border-border-subtle bg-surface px-5 py-1">
         <Row label="Name" value={name} />
         <Row label="Email" value={user?.email} />
+        {user?.email_verified === false && (
+          <div className="flex flex-col gap-2 border-b border-border-subtle py-3.5 last:border-b-0 sm:flex-row sm:items-center sm:gap-4">
+            <p className="w-[150px] flex-shrink-0 text-[13px] text-text-secondary">Verification</p>
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <Badge variant="warning">Not verified</Badge>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-auto p-0 text-[13px] font-medium text-brand underline hover:bg-transparent hover:opacity-80"
+                disabled={resending}
+                onClick={handleResend}
+              >
+                {resending ? 'Sending…' : 'Resend verification email'}
+              </Button>
+            </div>
+          </div>
+        )}
         <Row label="Role" value={ROLE_LABELS[role] || role} />
         <Row label="User ID" value={user?.id} mono />
       </div>
