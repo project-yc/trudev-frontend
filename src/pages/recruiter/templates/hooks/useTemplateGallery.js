@@ -13,6 +13,27 @@ const EMPTY_FILTERS = {
   duration_max: '',
 };
 
+function currentParams() {
+  return new URLSearchParams(window.location.search);
+}
+
+function readInitialSearch() {
+  return currentParams().get('search') || '';
+}
+
+// Only the keys the gallery already knows how to filter by. Anything else in
+// the query string (campaign tags and the like) is ignored rather than sent to
+// the API as a filter it would reject.
+function readInitialFilters() {
+  const params = currentParams();
+  const seeded = { ...EMPTY_FILTERS };
+  for (const key of Object.keys(EMPTY_FILTERS)) {
+    const value = params.get(key);
+    if (value) seeded[key] = value;
+  }
+  return seeded;
+}
+
 /**
  * Owns fetching for the template gallery.
  *
@@ -25,9 +46,13 @@ export function useTemplateGallery() {
   const [result, setResult] = useState({ key: null, data: EMPTY_RESULT });
   const [failure, setFailure] = useState({ key: null, message: '' });
 
-  const [search, setSearchState] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [filters, setFiltersState] = useState(EMPTY_FILTERS);
+  // Seeded from the URL so other screens can hand the gallery a starting point
+  // — onboarding sends recruiters here pre-filtered to the roles they said they
+  // were hiring for. Read once: after mount the controls own this state, and
+  // re-reading would fight the user every time they cleared a filter.
+  const [search, setSearchState] = useState(() => readInitialSearch());
+  const [debouncedSearch, setDebouncedSearch] = useState(search);
+  const [filters, setFiltersState] = useState(readInitialFilters);
   const [page, setPage] = useState(1);
 
   // Filter dropdown values. Loaded once — they are enum labels, not data.
