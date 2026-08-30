@@ -36,7 +36,10 @@ import {
 import RecruiterLayout from '../RecruiterLayout';
 import EmptyDashboardState from '../dashboard/components/EmptyDashboardState';
 import truDevLogo from '../../../assets/icons/trudev_logo.svg';
-import peekCharacter from '../../../assets/recruiter/images/onboarding_peek.png';
+// WebP at 250px for a 100px slot — 3x, which covers retina with headroom. The
+// first cut of this was a 420px PNG at 125 KB: 4.2x oversized, so ~18x the
+// pixels it needed, and it visibly popped in after the card had rendered.
+import peekCharacter from '../../../assets/recruiter/images/onboarding_peek.webp';
 import { saveOrgDetails, launchWorkspace } from '../../../api/recruiter/onboarding';
 
 // Mirrors .animate-ob-card-out and the backdrop transition in index.css. The
@@ -341,6 +344,12 @@ export default function OnboardingPage() {
               alt=""
               aria-hidden
               draggable={false}
+              // Intrinsic size so the browser knows the aspect ratio before the
+              // bytes arrive and does not reflow the card when they do. CSS
+              // still drives the rendered width.
+              width={250}
+              height={195}
+              decoding="async"
               className="pointer-events-none absolute bottom-full right-7 -mb-[6px] hidden w-[100px] select-none sm:block"
             />
 
