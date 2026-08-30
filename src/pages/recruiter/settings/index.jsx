@@ -9,7 +9,6 @@
 import { useSearchParams } from 'react-router-dom';
 
 import { AskAnythingBar } from '../../../components/recruiter/AskAnythingBar';
-import { Toaster } from '../../../components/ui/sonner';
 import { SettingsNav } from './components/SettingsNav';
 import { SETTINGS_TABS } from './tabs';
 import { IntegrationsPanel } from './panels/IntegrationsPanel';
@@ -42,7 +41,6 @@ export default function SettingsPage() {
   return (
     <div className="flex min-h-full flex-col bg-page">
       <AskAnythingBar />
-      <Toaster />
 
       <div className="min-h-0 flex-1 p-3 pt-0">
         <section className="min-h-[calc(100vh-76px)] rounded-[10px] border border-border-subtle bg-surface px-[39px] pb-[24px] pt-[42px]">
