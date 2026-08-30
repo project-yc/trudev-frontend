@@ -126,7 +126,7 @@ export default function LoginPage() {
           {/* Logo */}
           <div className="flex items-center mb-20 ">
             <img src={truDevLogo} alt="" className="h-6 w-6" />
-            <span className="text-[clamp(16px,2.6vh,22px)] font-medium leading-6 text-[#121212]">TruDev</span>
+            <span className="font-wordmark text-[clamp(16px,2.6vh,22px)] font-medium leading-6 text-[#121212]">TruDev</span>
           </div>
 
           {/* Heading */}
