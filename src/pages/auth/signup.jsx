@@ -134,7 +134,7 @@ export default function SignupPage() {
           {/* Logo */}
           <div className="flex items-center gap-1.5 mb-[clamp(4px,1.2vh,16px)]">
             <img src={truDevLogo} alt="" className="h-[clamp(16px,2vh,22px)] w-[clamp(16px,2vh,22px)]" />
-            <span className="text-[clamp(13px,1.8vh,19px)] font-medium leading-6 text-[#121212]">TruDev</span>
+            <span className="font-wordmark text-[clamp(13px,1.8vh,19px)] font-medium leading-6 text-[#121212]">TruDev</span>
           </div>
 
           {/* Heading */}
