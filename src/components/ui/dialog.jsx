@@ -21,11 +21,17 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
  * `container` portals the dialog into a specific element. Candidate screens
  * pass their theme scope node so the dialog inherits the dark variables
  * instead of the light ones on <body>.
+ *
+ * `overlayClassName` restyles the scrim. The default is a dark, blurred sheet,
+ * which is wrong for any screen that blurs its own background — onboarding
+ * blurs the dashboard behind it, and a second blur on top of that just muddies
+ * it. Passing this is the only way to reach the overlay, since `DialogContent`
+ * renders it internally.
  */
 const DialogContent = React.forwardRef(
-  ({ className, children, container, showClose = true, ...props }, ref) => (
+  ({ className, children, container, showClose = true, overlayClassName, ...props }, ref) => (
     <DialogPortal container={container}>
-      <DialogOverlay />
+      <DialogOverlay className={overlayClassName} />
       <DialogPrimitive.Content
         ref={ref}
         className={cn(
