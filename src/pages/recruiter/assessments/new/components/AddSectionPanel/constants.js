@@ -1,5 +1,5 @@
 import { formatCompetencyLabel } from '../../../../../../utils/competencyLabels';
-import adaptiveCard from '../../../../../../assets/recruiter/images/adaptive_card.svg';
+import adaptiveCard from '../../../../../../assets/recruiter/images/adaptive__card.svg';
 import codingIcon from '../../../../../../assets/recruiter/icons/coding.svg';
 import freeTextIcon from '../../../../../../assets/recruiter/icons/free_text.svg';
 import mcqIcon from '../../../../../../assets/recruiter/icons/mcq.svg';
