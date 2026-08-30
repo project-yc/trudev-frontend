@@ -10,8 +10,11 @@ import {
 } from 'lucide-react';
 import { RecruiterThemeProvider } from '../../theme/RecruiterThemeProvider.jsx';
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
+import { Toaster } from '../../components/ui/sonner';
+import { Button } from '../../components/ui/button';
 import { useAuth } from '../../auth/authContext';
 import { ROLE_LABELS } from '../../constants/roles';
+import { resendVerificationEmail } from '../../lib/emailVerification';
 
 const NAV_GROUPS = [
   {
@@ -47,10 +50,12 @@ const NAV_GROUPS = [
 
 function LayoutShell({ children }) {
   const navigate = useNavigate();
-  const { role: sessionRole, logout } = useAuth();
+  const { role: sessionRole, logout, user: authUser } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [resending, setResending] = useState(false);
+  const showVerifyBanner = authUser?.email_verified === false;
 
   const user = (() => { try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch { return {}; } })();
   const org  = (() => { try { return JSON.parse(localStorage.getItem('org')  || '{}'); } catch { return {}; } })();
@@ -70,6 +75,12 @@ function LayoutShell({ children }) {
     setAccountOpen(false);
     setMobileOpen(false);
     navigate('/recruiter/settings');
+  };
+
+  const handleResend = async () => {
+    setResending(true);
+    await resendVerificationEmail();
+    setResending(false);
   };
 
   const renderSidebarContent = () => (
@@ -258,14 +269,31 @@ function LayoutShell({ children }) {
             <div className="w-5 h-5 rounded bg-brand flex items-center justify-center">
               <span className="w-full h-full rounded bg-[var(--color-sidebar-control)]" />
             </div>
-            <span className="text-[12px] font-bold tracking-[0.08em] text-text-primary font-display">Trudev</span>
+            <span className="font-wordmark text-[12px] font-medium tracking-[0.01em] text-text-primary">Trudev</span>
           </div>
         </header>
+
+        {showVerifyBanner && (
+          <div className="flex flex-shrink-0 items-center justify-center gap-3 border-b border-warning-border bg-warning-bg px-4 py-2 text-[12.5px] text-warning">
+            <span>Verify your email to unlock all features.</span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-auto p-0 text-warning underline hover:bg-transparent hover:opacity-80"
+              disabled={resending}
+              onClick={handleResend}
+            >
+              {resending ? 'Sending…' : 'Resend link'}
+            </Button>
+          </div>
+        )}
 
         <main className="flex-1 overflow-y-auto bg-page">
           {children}
         </main>
       </div>
+
+      <Toaster />
     </div>
   );
 }
