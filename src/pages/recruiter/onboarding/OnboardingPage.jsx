@@ -108,6 +108,27 @@ function companyFromEmail(email) {
   return { name, domain };
 }
 
+// What the company field starts with.
+//
+// `org.name` is deliberately NOT the first choice. Signup creates the org
+// before the recruiter has named anything, and the backend seeds that name from
+// the person — so it arrives here as "Akhil Mulagada", not "Northwind Labs",
+// and the old `org.name || guess.name` handed the user their own name back.
+//
+// A stored name that merely echoes the signed-in user is a placeholder, so the
+// work-email domain wins. A genuinely different `org.name` — someone joining an
+// org that is already named — is real and is left alone.
+function initialCompanyName(user, guess) {
+  const orgName = String(readJson('org')?.name || '').trim();
+  const person = String(user?.full_name || user?.name || '').trim();
+  const emailLocal = String(user?.email || '').split('@')[0].trim();
+
+  const same = (a, b) => Boolean(a) && Boolean(b) && a.toLowerCase() === b.toLowerCase();
+  const isPlaceholder = !orgName || same(orgName, person) || same(orgName, emailLocal);
+
+  return isPlaceholder ? (guess.name || orgName) : orgName;
+}
+
 // ─── Pieces ──────────────────────────────────────────────────────────────────
 
 // Built on Button so it inherits the disabled handling and sizing.
@@ -129,7 +150,7 @@ function Chip({ label, selected, onClick }) {
       aria-pressed={selected}
       onClick={onClick}
       className={cn(
-        'h-[34px] rounded-full px-3.5 text-[12.5px] font-medium',
+        'h-[31px] rounded-full px-3.5 text-[12.5px] font-medium',
         // index.css declares a global `*:focus-visible { outline: 2px solid
         // var(--color-brand) }` which beats Button's unqualified `outline-none`
         // on specificity — that was a second way the org's brand colour leaked
@@ -151,7 +172,7 @@ function Chip({ label, selected, onClick }) {
 
 function Field({ label, hint, htmlFor, children }) {
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-[7px]">
       <div className="flex items-baseline justify-between gap-3">
         <Label
           htmlFor={htmlFor}
@@ -176,7 +197,7 @@ export default function OnboardingPage() {
   const userName = user?.full_name || user?.name || user?.email || 'Recruiter';
   const guess = useMemo(() => companyFromEmail(user?.email), [user]);
 
-  const [companyName, setCompanyName] = useState(() => readJson('org')?.name || guess.name);
+  const [companyName, setCompanyName] = useState(() => initialCompanyName(user, guess));
   const [teamSize, setTeamSize]       = useState('');
   const [roles, setRoles]             = useState([]);
   const [loading, setLoading]         = useState(false);
@@ -292,11 +313,11 @@ export default function OnboardingPage() {
           className={cn(
             // Bottom sheet on phones, centred card from `sm` up.
             'w-full max-w-none sm:w-[calc(100%-2rem)] sm:max-w-[560px]',
-            // The extra 58px is half the character's height: it centres the
-            // card *plus* the figure standing on it, rather than centring the
-            // card alone and letting the figure run off the top of a short
-            // laptop viewport.
-            'bottom-0 top-auto translate-y-0 sm:bottom-auto sm:top-1/2 sm:translate-y-[calc(-50%+58px)]',
+            // The extra 38px is half the character's rendered height (75px at
+            // w-[100px]): it centres the card *plus* the figure standing on it,
+            // rather than centring the card alone and letting the figure run off
+            // the top of a short laptop viewport. Retune if the art resizes.
+            'bottom-0 top-auto translate-y-0 sm:bottom-auto sm:top-1/2 sm:translate-y-[calc(-50%+38px)]',
             // Stripped back to a positioning shell. The card's own surface,
             // radius and shadow moved to the panel below so this element can
             // stay overflow-visible — the peeking character hangs above the
@@ -314,26 +335,25 @@ export default function OnboardingPage() {
               leaving ? 'animate-ob-card-out' : 'animate-ob-card-in',
             )}
           >
-            {/* Peeking character. Sits on the card's top edge with a 1px
-                overlap so no hairline shows between the hands and the card.
-                Desktop only — the mobile sheet is nearly full height, leaving
-                nothing above it to peek over. */}
+
             <img
               src={peekCharacter}
               alt=""
               aria-hidden
               draggable={false}
-              className="pointer-events-none absolute bottom-full right-7 -mb-px hidden w-[150px] select-none sm:block"
+              className="pointer-events-none absolute bottom-full right-7 -mb-[6px] hidden w-[100px] select-none sm:block"
             />
 
             <div
               className={cn(
                 'rounded-b-none rounded-t-[22px] bg-surface sm:rounded-[24px]',
                 'shadow-[0_24px_60px_-12px_rgba(23,15,10,0.28)]',
-                // Capped so the card plus the character above it still fit a
-                // short laptop viewport; the card scrolls before it collides.
-                'max-h-[94vh] overflow-y-auto sm:max-h-[calc(100vh-150px)]',
-                'px-6 py-7 sm:px-8',
+                // Last-resort cap only. It has to clear the character (75px)
+                // plus breathing room, or it clamps a card that would otherwise
+                // have fitted — at 100vh-150px a 1440x900 laptop capped at 620px
+                // against 619px of content and grew a scrollbar over 1px.
+                'max-h-[94vh] overflow-y-auto sm:max-h-[calc(100vh-110px)]',
+                'px-6 py-6 sm:px-8',
               )}
             >
             {/* Wordmark + the escape hatch */}
@@ -357,7 +377,7 @@ export default function OnboardingPage() {
             {/* Greeting. The time estimate is the single cheapest thing you can
                 put on an onboarding screen — it caps the perceived cost before
                 the user has read a single field. */}
-            <div className="mt-6 flex items-center gap-[18px]">
+            <div className="mt-4 flex items-center gap-[18px]">
               {HERO_ILLUSTRATION && (
                 <img
                   src={HERO_ILLUSTRATION}
@@ -367,22 +387,20 @@ export default function OnboardingPage() {
                 />
               )}
               <div className="min-w-0">
-                <DialogTitle className="font-sans text-[26px] font-bold leading-[1.2] tracking-[-0.025em] text-text-primary sm:text-[30px]">
+                <DialogTitle className="font-sans text-[22px] font-bold leading-[1.2] tracking-[-0.025em] text-text-primary sm:text-[25px]">
                   {firstName ? (
                     <>Welcome, <span className="text-[var(--color-assessment-accent)]">{firstName}</span>.</>
                   ) : (
                     <>Welcome to <span className="font-wordmark font-medium">TruDev</span>.</>
                   )}
                 </DialogTitle>
-                <DialogDescription className="mt-1.5 text-[14px] leading-[1.5] text-text-secondary">
+                <DialogDescription className="mt-1 text-[13px] leading-[1.45] text-text-secondary">
                   Three answers and your workspace is ready — about twenty seconds.
                 </DialogDescription>
               </div>
             </div>
 
-            <div className="my-6 h-px bg-border-subtle" />
-
-            <div className="space-y-[18px]">
+            <div className="mt-5 space-y-[14px]">
               <Field
                 label="Company"
                 htmlFor="ob-company"
@@ -398,7 +416,7 @@ export default function OnboardingPage() {
                     // No focus override: the shared Input now keeps its border
                     // steady and carries focus on a warm halo alone. Colouring
                     // it here would reintroduce the org's brand tint.
-                    className="h-[42px] rounded-[10px] pr-9 text-[14px]"
+                    className="h-[40px] rounded-[10px] pr-9 text-[14px]"
                   />
                   {companyName.trim() && (
                     <Check
@@ -436,7 +454,7 @@ export default function OnboardingPage() {
 
                 {/* The reason this question is not a survey: the answer is
                     visibly spent on something before the user leaves the card. */}
-                <div className="mt-3.5 flex min-h-[18px] items-start gap-2">
+                <div className="mt-2.5 flex min-h-[18px] items-start gap-2">
                   {payoff ? (
                     <>
                       <Sparkles
@@ -467,7 +485,7 @@ export default function OnboardingPage() {
               variant="cta"
               onClick={finish}
               disabled={loading || leaving}
-              className="mt-6 h-[46px] w-full rounded-[12px] text-[14px]"
+              className="mt-5 h-[44px] w-full rounded-[12px] text-[14px]"
             >
               {loading || leaving ? (
                 <>
@@ -482,7 +500,7 @@ export default function OnboardingPage() {
               )}
             </Button>
 
-              <p className="mt-3.5 text-center text-[11.5px] text-text-faint">
+              <p className="mt-2.5 text-center text-[11px] text-text-faint">
                 Logo, brand colour and teammates — all editable later in Settings.
               </p>
             </div>
