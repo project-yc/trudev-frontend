@@ -58,7 +58,7 @@ export function CandidateFooter() {
         alt="TruDev"
         className="h-4 w-auto object-contain rounded-sm opacity-50"
       />
-      <span className="text-text-muted text-xs font-semibold tracking-tight">TruDev</span>
+      <span className="font-wordmark text-text-muted text-xs font-medium tracking-tight">TruDev</span>
     </div>
   )
 }

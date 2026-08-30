@@ -38,6 +38,14 @@ export const RECRUITER_PALETTE = {
   assessmentCtaHover:'#eb6f0f',
   assessmentCtaText:'#FFFFFF',
   assessmentAllocation:'#FF7A1A',
+  // Fixed ember tint + its text colour, to pair with `assessmentCta` above.
+  // The brand family already has a tint/deep pair, but those are REPLACED at
+  // runtime with the org's own colour — so a component using them next to an
+  // `assessmentCta` button ends up half brand-coloured and half ember. These
+  // are for surfaces that must stay ember for every org: onboarding especially,
+  // which runs before the org has picked a brand colour at all.
+  assessmentTint: '#FFE8D5', // Ember 100 — selected / badge background
+  assessmentTintText:'#9A4405', // Ember 800 — 7.4:1 on assessmentTint
   reportMetricStart:'#6678EF',
   reportMetricEnd:'#32B5C2',
   reportMetricIconBg:'#90A6F8',
@@ -232,6 +240,8 @@ export const CSS_VAR_KEYS = {
   assessmentCtaHover:'--color-assessment-cta-hover',
   assessmentCtaText:'--color-assessment-cta-text',
   assessmentAllocation:'--color-assessment-allocation',
+  assessmentTint: '--color-assessment-tint',
+  assessmentTintText:'--color-assessment-tint-text',
   reportMetricStart:'--color-report-metric-start',
   reportMetricEnd:'--color-report-metric-end',
   reportMetricIconBg:'--color-report-metric-icon-bg',

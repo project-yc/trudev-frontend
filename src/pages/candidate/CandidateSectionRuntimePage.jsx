@@ -553,7 +553,7 @@ export default function CandidateSectionRuntimePage() {
         <div className="min-h-screen bg-[#040914] flex flex-col items-center justify-center p-4">
           <div className="flex items-center gap-2 mb-10">
             <Zap className="w-4 h-4 text-[#18d3ff]" strokeWidth={2.5} />
-            <span className="text-sm font-bold tracking-[0.08em] text-[#edf4ff]">TruDev</span>
+            <span className="font-wordmark text-sm font-medium tracking-[0.01em] text-[#edf4ff]">TruDev</span>
           </div>
           <CandidateBootScreen />
         </div>

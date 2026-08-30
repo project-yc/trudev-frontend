@@ -671,3 +671,104 @@
   }
 }
 
+
+/* ═══════════════════════════════════════════════════════
+   SHEET / DRAWER MOTION
+   `sheet.jsx` was written against tailwindcss-animate (`animate-in`,
+   `slide-in-from-right`, `fade-in-0`), but that plugin is not installed —
+   `tailwind.config.js` has `plugins: []`. Every one of those classes compiled to
+   nothing, so the drawer had no enter or exit animation at all: it appeared and
+   vanished in a single frame, and the `transition ease-in-out` on the panel had
+   no property to transition.
+   Written here rather than by adding the plugin for the reason the candidate
+   utilities above give — this file hot-reloads, tailwind.config.js does not on
+   this path. Radix keeps the element mounted for the exit animation because
+   `SheetContent` reads its duration from these rules.
+   ═══════════════════════════════════════════════════════ */
+@keyframes sheetFadeIn  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes sheetFadeOut { from { opacity: 1; } to { opacity: 0; } }
+
+@keyframes sheetInRight  { from { transform: translate3d(100%, 0, 0); } to { transform: translate3d(0, 0, 0); } }
+@keyframes sheetOutRight { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(100%, 0, 0); } }
+@keyframes sheetInLeft   { from { transform: translate3d(-100%, 0, 0); } to { transform: translate3d(0, 0, 0); } }
+@keyframes sheetOutLeft  { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(-100%, 0, 0); } }
+@keyframes sheetInTop    { from { transform: translate3d(0, -100%, 0); } to { transform: translate3d(0, 0, 0); } }
+@keyframes sheetOutTop   { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(0, -100%, 0); } }
+@keyframes sheetInBottom  { from { transform: translate3d(0, 100%, 0); } to { transform: translate3d(0, 0, 0); } }
+@keyframes sheetOutBottom { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(0, 100%, 0); } }
+
+@layer utilities {
+  /* Asymmetric on purpose: the decelerating curve is what makes the panel read
+     as arriving rather than snapping, and a close should feel quicker than an
+     open.
+
+     The 240ms exit is mirrored by SHEET_EXIT_DURATION_MS in
+     components/ui/sheet.jsx, which callers use to hold their content steady
+     until the panel is actually gone. Change both together. */
+  .animate-sheet-overlay-in  { animation: sheetFadeIn  260ms cubic-bezier(0.32, 0.72, 0, 1) both; }
+  .animate-sheet-overlay-out { animation: sheetFadeOut 200ms cubic-bezier(0.32, 0.72, 0, 1) both; }
+
+  .animate-sheet-in-right  { animation: sheetInRight  340ms cubic-bezier(0.32, 0.72, 0, 1) both; }
+  .animate-sheet-out-right { animation: sheetOutRight 240ms cubic-bezier(0.6, 0, 0.9, 0.4) both; }
+  .animate-sheet-in-left   { animation: sheetInLeft   340ms cubic-bezier(0.32, 0.72, 0, 1) both; }
+  .animate-sheet-out-left  { animation: sheetOutLeft  240ms cubic-bezier(0.6, 0, 0.9, 0.4) both; }
+  .animate-sheet-in-top    { animation: sheetInTop    340ms cubic-bezier(0.32, 0.72, 0, 1) both; }
+  .animate-sheet-out-top   { animation: sheetOutTop   240ms cubic-bezier(0.6, 0, 0.9, 0.4) both; }
+  .animate-sheet-in-bottom  { animation: sheetInBottom  340ms cubic-bezier(0.32, 0.72, 0, 1) both; }
+  .animate-sheet-out-bottom { animation: sheetOutBottom 240ms cubic-bezier(0.6, 0, 0.9, 0.4) both; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [class*='animate-sheet-'] {
+    animation-duration: 1ms !important;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════
+   WORDMARK + ONBOARDING MOTION
+
+   "TruDev" is set in Clash Display Medium wherever it appears as the brand
+   wordmark — auth screens, the recruiter shell, candidate chrome, onboarding.
+   Prose that merely mentions the company ("the TruDev library", "a shared
+   TruDev question") stays in the body face; only the mark itself changes.
+
+   Clash Display comes from Fontshare, so the <link> is in index.html rather
+   than the Google Fonts URL. Deliberately no font-weight here: the utility
+   only swaps the family, so callers keep using Tailwind's weight classes and
+   the two never fight over specificity.
+
+   The onboarding keyframes exist for the same reason the sheet ones below do —
+   `tailwindcss-animate` is not installed, so `animate-in` / `fade-out-0` and
+   friends compile to nothing.
+   ═══════════════════════════════════════════════════════ */
+@layer utilities {
+  /* Family only. Weight and tracking stay with the call site as ordinary
+     Tailwind classes — putting them here would mean two utilities competing for
+     the same property with no reliable winner, since both land in this layer. */
+  .font-wordmark {
+    font-family: 'Clash Display', 'Syne', system-ui, sans-serif;
+  }
+}
+
+@keyframes obCardIn {
+  from { opacity: 0; transform: translate3d(0, 14px, 0) scale(0.985); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+@keyframes obCardOut {
+  from { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+  to   { opacity: 0; transform: translate3d(0, 6px, 0) scale(0.97); }
+}
+
+@layer utilities {
+  /* The card leaves faster than it arrives, and it leaves while the backdrop
+     blur is still resolving — the reveal underneath is the point, so the card
+     should be gone before the dashboard finishes sharpening.
+     OB_EXIT_MS in OnboardingPage.jsx mirrors these numbers; change together. */
+  .animate-ob-card-in  { animation: obCardIn  420ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .animate-ob-card-out { animation: obCardOut 220ms cubic-bezier(0.6, 0, 0.9, 0.4) both; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [class*='animate-ob-'] { animation-duration: 1ms !important; }
+}

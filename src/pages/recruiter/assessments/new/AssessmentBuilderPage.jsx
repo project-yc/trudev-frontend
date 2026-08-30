@@ -10,7 +10,6 @@ import { AssessmentBuilderStep } from './steps/AssessmentBuilderStep';
 import { AssessmentReviewStep } from './steps/AssessmentReviewStep';
 import { AssessmentSuccessStep } from './steps/AssessmentSuccessStep';
 import { AskAnythingBar } from '../../../../components/recruiter/AskAnythingBar';
-import { Toaster } from '../../../../components/ui/sonner';
 
 function BuilderLayout() {
   const { state, dispatch, ACTIONS } = useAssessmentBuilder();
@@ -87,7 +86,6 @@ function BuilderLayout() {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-page">
-      <Toaster />
       <AskAnythingBar />
       <div className="min-h-0 flex-1 p-3 pt-0 md:pt-0">
         <div className="h-full min-h-0 overflow-hidden rounded-[10px] border border-border-subtle bg-surface">

@@ -12,6 +12,8 @@
  * See docs/audits/01-account-creation-auth.md (H2, L1, L5).
  */
 
+import { logout as logoutRequest } from '../api/auth/auth';
+
 const ACCESS_KEY = 'authToken';
 const REFRESH_KEY = 'refreshToken';
 const SESSION_KEYS = [ACCESS_KEY, REFRESH_KEY, 'user', 'userRole', 'org', 'permissions'];
@@ -36,7 +38,6 @@ const CANDIDATE_SESSION_KEYS = [
 const CANDIDATE_KEY_PREFIXES = ['trudev_ans_'];
 
 const REFRESH_ENDPOINT = '/api/auth/refresh';
-const LOGOUT_ENDPOINT = '/api/auth/logout';
 
 export const getAccessToken = () => localStorage.getItem(ACCESS_KEY);
 export const getRefreshToken = () => localStorage.getItem(REFRESH_KEY);
@@ -79,20 +80,10 @@ export function clearSession() {
  * refresh token stayed valid for up to 7 days.
  */
 export async function forceLogout({ redirectTo = '/login' } = {}) {
-  const refresh = getRefreshToken();
-  if (refresh) {
-    try {
-      await fetch(LOGOUT_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: refresh }),
-        // The page is about to navigate; don't let a hung request block it.
-        keepalive: true,
-      });
-    } catch {
-      // Best effort — never block sign-out on a network failure.
-    }
-  }
+  // Best effort — `logoutRequest` swallows its own failures, so a network
+  // outage still signs the user out locally rather than trapping them in a
+  // session they asked to leave.
+  await logoutRequest(getRefreshToken());
   clearSession();
   window.location.href = redirectTo;
 }

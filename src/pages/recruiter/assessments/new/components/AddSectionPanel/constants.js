@@ -1,5 +1,5 @@
 import { formatCompetencyLabel } from '../../../../../../utils/competencyLabels';
-import adaptiveCard from '../../../../../../assets/recruiter/images/adaptive_card.svg';
+import adaptiveCard from '../../../../../../assets/recruiter/images/adaptive__card.svg';
 import codingIcon from '../../../../../../assets/recruiter/icons/coding.svg';
 import freeTextIcon from '../../../../../../assets/recruiter/icons/free_text.svg';
 import mcqIcon from '../../../../../../assets/recruiter/icons/mcq.svg';
@@ -15,6 +15,16 @@ export const SECTION_CARDS = [
 export const ADAPTIVE_CARD_IMAGE = adaptiveCard;
 
 export const TIMER_OPTIONS = [15, 30, 45, 60, 90];
+
+// The section timer a drawer opens on. Coding keeps a longer default because a
+// technical task is a build-and-submit exercise, not a handful of questions —
+// 15 minutes is not a task anyone can finish. Every other type opens on the
+// shortest option so the recruiter deliberately lengthens a section rather than
+// silently spending three quarters of the assessment budget on the first one
+// they add.
+export const DEFAULT_SECTION_TIMER = 15;
+export const DEFAULT_CODING_SECTION_TIMER = 45;
+
 export const POINT_OPTIONS = [5, 10, 15, 20];
 // Values must match backend AILevel (assessments/constants.py). This used to
 // send 'chat', which the serializer rejects and which analytics would have
@@ -34,20 +44,50 @@ export const AI_LEVEL_OPTIONS = [
  * but a key change is not.
  */
 export const CODING_RUBRIC_DIMENSIONS = [
-  { key: 'problem_solving_process', label: 'Problem solving process' },
-  { key: 'task_completion', label: 'Task Completion' },
-  { key: 'ai_collaboration', label: 'AI Collaboration' },
-  { key: 'design_quality', label: 'Design Quality' },
+  {
+    key: 'problem_solving_process',
+    label: 'Problem solving process',
+    hint: 'How they worked through the problem — where they started, what they tried when stuck, how they checked their own work.',
+  },
+  {
+    key: 'task_completion',
+    label: 'Task Completion',
+    hint: 'How much of what the task asked for actually works when the tests run.',
+  },
+  {
+    key: 'ai_collaboration',
+    label: 'AI Collaboration',
+    hint: 'How well they directed the AI assistant and judged what it gave back. Automatically ignored when the section gives them no AI access.',
+  },
+  {
+    key: 'design_quality',
+    label: 'Design Quality',
+    hint: 'How the code is put together — naming, structure, and whether the next person could work in it.',
+  },
 ];
 
-// Which task in the list is pre-selected when the recruiter picks none.
-// The list highlight and the create handler must agree on this — they used to
-// differ (1 vs 0), so accepting the default published a task the UI never
-// showed as selected.
-export const DEFAULT_CODING_TASK_INDEX = 0;
-export const FILTER_ROLES = ['Front-end developer', 'QA engineer', 'Back-end developer', 'Data engineer', 'Full-stack developer'];
+// The weights are a RELATIVE weighted average, not a multiplier on the score
+// (SessionReport.compute_overall_score divides by the sum of the weights it
+// used). All four at 3 scores identically to all four at 1 — what matters is
+// only how they compare with each other. They were rendered as "1x".."5x",
+// which reads as "this dimension counts five times" against a composite that is
+// still 0-100 whatever you pick.
+export const RUBRIC_WEIGHT_OPTIONS = [1, 2, 3, 4, 5];
+export const RUBRIC_WEIGHT_HELP = 'These are relative, not multipliers: what counts is how the four compare '
+  + 'with each other. All on the same number weights them equally; raising one makes it '
+  + 'count more of the section score and the others proportionally less.';
+// '' is "every role" and leads the list, because that is what the picker opens
+// on. Without an explicit entry there was no way BACK to unfiltered once a role
+// had been chosen.
+export const FILTER_ROLES = ['', 'Front-end developer', 'QA engineer', 'Back-end developer', 'Data engineer', 'Full-stack developer'];
 export const LANGUAGE_OPTIONS = ['', 'Python', 'JavaScript', 'Ruby', 'C++', 'Go', 'Java'];
-export const DIFFICULTY_OPTIONS = ['easy', 'medium', 'hard', 'adaptive'];
+
+// 'any' sends no `difficulty` at all. The fourth option used to be 'adaptive',
+// which is not a difficulty the library stores — it was silently translated to
+// "no filter" by the fetch, so the control offered three real difficulties and
+// one mislabelled escape hatch, and nothing said so.
+export const DIFFICULTY_ANY = 'any';
+export const DIFFICULTY_OPTIONS = [DIFFICULTY_ANY, 'easy', 'medium', 'hard'];
 export const WORD_LIMIT_OPTIONS = [50, 100, 150, 200, 300];
 export const DRAWER_TYPE_LABELS = {
   mcq: 'MCQ',
@@ -137,7 +177,9 @@ export const ROLE_FOCUS_AREAS = {
 };
 
 export const ADAPTIVE_TIMER_OPTIONS = [10, 15, 20, 30, 45];
-export const ADAPTIVE_DEFAULT_TIMER = 20;
+// 15, matching DEFAULT_SECTION_TIMER — the interview's Duration control is this
+// section's timer, so it opens on the same default every other drawer does.
+export const ADAPTIVE_DEFAULT_TIMER = 15;
 
 // Roughly three minutes per question — an answer plus the model's turn. The
 // engine terminates on the question budget, not the clock, so this only sets
@@ -251,12 +293,15 @@ export const focusAreasNeededFor = (timerMinutes) => Math.max(
   ),
 );
 
-export const FALLBACK_CODING_TASKS = [
-  { id: 'fallback-campus-lost-found', title: 'Campus lost and found System', language: 'Python', tags: ['FastAPI', 'Backend'], domain: 'backend' },
-  { id: 'fallback-course-marketplace', title: 'Online Course Marketplace', language: 'JavaScript', tags: ['React', 'Frontend'], domain: 'frontend' },
-  { id: 'fallback-budget-tracker', title: 'Personal Budget Tracker', language: 'Ruby', tags: ['Rails', 'Full Stack'], domain: 'fullstack' },
-  { id: 'fallback-smart-home', title: 'Smart Home Automation', language: 'C++', tags: ['MQTT', 'IoT Development'], domain: 'iot' },
-];
+// `FALLBACK_CODING_TASKS` is gone. It was four invented tasks ("Online Course
+// Marketplace", "Smart Home Automation", ...) rendered whenever the library
+// returned nothing — which is indistinguishable, on screen, from four tasks the
+// org actually owns. Picking one produced an item whose `task_id` was the string
+// `fallback-course-marketplace`; `resolveAssessmentItemId` in
+// assessmentBuilderApi.js then had to special-case that prefix and abort the
+// publish, halfway through, with an error about a task the recruiter had no
+// reason to think was fake. The picker now shows the library or an honest empty
+// state, and there is nothing left to select that cannot be published.
 
 export const createInitialOptions = () => [
   { id: crypto.randomUUID(), text: 'Option 1', is_correct: true },

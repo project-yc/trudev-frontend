@@ -56,6 +56,7 @@ import { useAuth } from './auth/authContext'
 import AcceptInvitePage from './pages/auth/AcceptInvitePage'
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage'
 import ResetPasswordPage from './pages/auth/ResetPasswordPage'
+import VerifyEmailPage from './pages/auth/VerifyEmailPage'
 
 function RoleBasedRedirect() {
   const { role: userRole, org, isLoading, isAuthenticated } = useAuth();
@@ -104,6 +105,7 @@ function App() {
         <Route path="/accept-invite" element={<AcceptInvitePage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/verify-email" element={<VerifyEmailPage />} />
         <Route 
           path="/admin" 
           element={
@@ -378,8 +380,8 @@ function App() {
         {import.meta.env.DEV && (
           <Route path="/__exam-preview" element={<ExamPreview />} />
         )}
-        {/* Guarded: this renders the org-creation wizard and collects company
-            details + teammate emails, so it must not be reachable anonymously. */}
+        {/* Guarded: this creates the org and flips is_onboarded, so it must not
+            be reachable anonymously. */}
         <Route
           path="/recruiter/onboarding"
           element={

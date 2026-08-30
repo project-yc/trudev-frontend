@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Search } from 'lucide-react';
 import { Input } from '../../../components/ui/input';
-import { Toaster } from '../../../components/ui/sonner';
 import { toast } from 'sonner';
 import { AskAnythingBar } from '../../../components/recruiter/AskAnythingBar';
 import { cn } from '../../../lib/utils';
@@ -48,7 +47,6 @@ export default function TemplatesPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-page">
-      <Toaster />
       <AskAnythingBar />
 
       <div className="min-h-0 flex-1 p-3 pt-0">

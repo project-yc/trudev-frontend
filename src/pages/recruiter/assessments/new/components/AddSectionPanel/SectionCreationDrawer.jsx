@@ -1,13 +1,13 @@
 import {
   Check,
-  ChevronDown,
   FileText,
   GripVertical,
-  HelpCircle,
+  Info,
   Search,
   SlidersHorizontal,
   X,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import CreateTaskOverlay from '../../../../../../components/recruiter/CreateTaskOverlay.jsx';
 import LibraryPickerPanel from '../../../../../../components/recruiter/library/LibraryPickerPanel.jsx';
 import {
@@ -18,7 +18,7 @@ import {
   ADAPTIVE_TIMER_OPTIONS,
   AI_LEVEL_OPTIONS,
   CODING_RUBRIC_DIMENSIONS,
-  DEFAULT_CODING_TASK_INDEX,
+  DIFFICULTY_ANY,
   DIFFICULTY_OPTIONS,
   DRAWER_TYPE_LABELS,
   FILTER_ROLES,
@@ -26,6 +26,8 @@ import {
   MAX_QUESTIONS_PER_COMPETENCY,
   POINT_OPTIONS,
   ROLE_FOCUS_AREAS,
+  RUBRIC_WEIGHT_HELP,
+  RUBRIC_WEIGHT_OPTIONS,
   TIMER_OPTIONS,
   UNIVERSAL_FOCUS_AREAS,
   WORD_LIMIT_OPTIONS,
@@ -42,6 +44,51 @@ import {
   SelectContent,
   SelectItem,
 } from '../../../../../../components/ui/select';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '../../../../../../components/ui/tooltip';
+
+// Radix's Select refuses an item whose value is the empty string - it uses ''
+// internally to mean "nothing selected" - so "any language" needs a stand-in.
+const ANY_LANGUAGE = '__any__';
+
+const COMING_SOON = () => toast.info('Coming soon', {
+  description: 'Custom tasks are still being built. Pick one from the library for now.',
+});
+
+/**
+ * An `i` that explains something, on hover AND on focus.
+ *
+ * The rubric rows carried a `HelpCircle` with no handler, no title and no
+ * `aria-*` of any kind — an orange dot that looked like help and gave none. A
+ * recruiter setting "Design Quality" to 5 had nothing anywhere on the screen
+ * telling them what "Design Quality" was scored on, or what 5 meant relative to
+ * 3, and the weights are what the composite score is computed from.
+ *
+ * `type="button"` because it sits inside no form here, but this drawer is
+ * copied from often and a bare <button> submits by default.
+ */
+function InfoHint({ label, children }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          aria-label={label}
+          className="flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-full text-text-muted transition-colors hover:text-text-primary focus-visible:text-text-primary"
+        >
+          <Info className="h-[15px] w-[15px]" strokeWidth={2} />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="top" align="start" className="max-w-[280px]">
+        {children}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
 
 function DrawerFooter({ onCancel, onSubmit, submitLabel = 'Add', submitDisabled = false }) {
   return (
@@ -143,16 +190,17 @@ function PointsSelect({ value, onChange, label = 'Total points' }) {
   );
 }
 
-function SectionDetailsStep({ drawerType, form, onCancel, onContinue }) {
+function SectionDetailsStep({ drawerType, form, onCancel, onContinue, isEditing = false }) {
   return (
     <>
       <div className="flex h-[56px] flex-shrink-0 items-center border-b border-border-subtle px-[22px]">
         <h2 className="text-[15px] font-medium leading-none text-text-secondary">
-          Create <span className="font-bold text-text-primary">{DRAWER_TYPE_LABELS[drawerType]}</span> section
+          {isEditing ? 'Edit' : 'Create'}{' '}
+          <span className="font-bold text-text-primary">{DRAWER_TYPE_LABELS[drawerType]}</span> section
         </h2>
       </div>
 
-      <div className="flex-1 px-[22px] pt-[30px]">
+      <div className="min-h-0 flex-1 overflow-y-auto px-[22px] pt-[30px]">
         <label className="block text-[15px] font-semibold leading-none text-text-primary">
           Section name
         </label>
@@ -167,18 +215,21 @@ function SectionDetailsStep({ drawerType, form, onCancel, onContinue }) {
         </div>
 
         {/* Adaptive asks for duration on the next step, where it also drives the
-            question budget — asking twice would let the two disagree. */}
-        {drawerType !== 'adaptive' && (
+            question budget — asking twice would let the two disagree. Editing an
+            existing section never reaches that step, so it asks here instead;
+            without this, an adaptive section's timer would be the one setting
+            "edit section" could not change. */}
+        {(drawerType !== 'adaptive' || isEditing) && (
           <>
             <label className="mt-[16px] block text-[15px] font-semibold leading-none text-text-primary">
-              Section Timer
+              {drawerType === 'adaptive' ? 'Duration' : 'Section Timer'}
             </label>
             <Select value={String(form.sectionTimer)} onValueChange={next => form.setSectionTimer(Number(next))}>
               <SelectTrigger className="mt-[10px] h-[42px] rounded-[8px] border-border-default text-[15px] font-medium">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {TIMER_OPTIONS.map(minutes => (
+                {(drawerType === 'adaptive' ? ADAPTIVE_TIMER_OPTIONS : TIMER_OPTIONS).map(minutes => (
                   <SelectItem key={minutes} value={String(minutes)}>{minutes}m</SelectItem>
                 ))}
               </SelectContent>
@@ -188,9 +239,16 @@ function SectionDetailsStep({ drawerType, form, onCancel, onContinue }) {
 
         {drawerType === 'coding' && (
           <>
-            <label className="mt-[16px] block text-[15px] font-semibold leading-none text-text-primary">
-              AI Level
-            </label>
+            <div className="mt-[16px] flex items-center gap-[7px]">
+              <label className="text-[15px] font-semibold leading-none text-text-primary">
+                AI Level
+              </label>
+              <InfoHint label="What AI Level controls">
+                How much help the built-in AI assistant gives during the task. It also
+                scales the AI Collaboration score: with no AI access that dimension is
+                dropped from the composite rather than counted as zero.
+              </InfoHint>
+            </div>
             <Select value={form.aiLevel} onValueChange={form.setAiLevel}>
               <SelectTrigger className="mt-[10px] h-[42px] rounded-[8px] border-border-default text-[15px] font-medium">
                 <SelectValue />
@@ -203,32 +261,45 @@ function SectionDetailsStep({ drawerType, form, onCancel, onContinue }) {
             </Select>
 
             <div className="mt-[16px]">
-              <h3 className="text-[15px] font-semibold leading-none text-text-primary">
-                Rubric weighting
-              </h3>
-              <p className="mt-[5px] text-[13px] leading-[17px] text-[#78879a]">
-                How much each dimension counts toward the section score. Leave them equal
-                to weight all four the same.
+              <div className="flex items-center gap-[7px]">
+                <h3 className="text-[15px] font-semibold leading-none text-text-primary">
+                  Rubric weighting
+                </h3>
+                <InfoHint label="How rubric weighting works">{RUBRIC_WEIGHT_HELP}</InfoHint>
+              </div>
+              {/* Plain prose instead of the previous "How much each dimension
+                  counts toward the section score", which the "1x".."5x" labels
+                  beside it contradicted — a multiplier suffix says the score
+                  gets bigger, and it does not: the four are averaged against the
+                  sum of their own weights. */}
+              <p className="mt-[5px] text-[13px] leading-[17px] text-text-secondary">
+                {RUBRIC_WEIGHT_HELP}
               </p>
             </div>
 
             <div className="mt-[9px] space-y-[4px]">
-              {CODING_RUBRIC_DIMENSIONS.map(({ key, label }) => (
-                <div key={key} className="flex h-[40px] items-center rounded-[7px] bg-[#f7f7f7] pl-[13px] pr-[5px]">
+              {CODING_RUBRIC_DIMENSIONS.map(({ key, label, hint }) => (
+                <div key={key} className="flex h-[40px] items-center rounded-[7px] bg-surface-muted pl-[13px] pr-[5px]">
                   <span className="text-[15px] font-semibold leading-none text-text-primary">{label}</span>
-                  <HelpCircle className="ml-[7px] h-[16px] w-[16px] flex-shrink-0 fill-[#ed7f1a] text-surface" strokeWidth={2.5} />
-                  <div className="relative ml-auto">
-                    <select
-                      value={form.rubricPoints[key]}
-                      onChange={event => form.setRubricPoints(current => ({ ...current, [key]: Number(event.target.value) }))}
-                      className="h-[32px] w-[72px] appearance-none rounded-[8px] border border-border-default bg-surface pl-[10px] pr-[24px] text-[14px] font-semibold text-text-primary outline-none"
+                  <span className="ml-[7px] flex items-center">
+                    <InfoHint label={`What ${label} measures`}>{hint}</InfoHint>
+                  </span>
+                  <Select
+                    value={String(form.rubricPoints[key])}
+                    onValueChange={next => form.setRubricPoints(current => ({ ...current, [key]: Number(next) }))}
+                  >
+                    <SelectTrigger
+                      aria-label={`${label} weight`}
+                      className="ml-auto h-[32px] w-[76px] rounded-[8px] border-border-default text-[14px] font-semibold"
                     >
-                      {[1, 2, 3, 4, 5].map(value => (
-                        <option key={value} value={value}>{value}×</option>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {RUBRIC_WEIGHT_OPTIONS.map(value => (
+                        <SelectItem key={value} value={String(value)}>{value}</SelectItem>
                       ))}
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-[8px] top-1/2 h-[14px] w-[14px] -translate-y-1/2 text-text-primary" strokeWidth={2} />
-                  </div>
+                    </SelectContent>
+                  </Select>
                 </div>
               ))}
             </div>
@@ -236,7 +307,7 @@ function SectionDetailsStep({ drawerType, form, onCancel, onContinue }) {
         )}
       </div>
 
-      <div className="flex flex-shrink-0 justify-end gap-[10px] px-[28px] pb-[28px]">
+      <div className="flex flex-shrink-0 justify-end gap-[10px] px-[28px] pb-[28px] pt-[10px]">
         <button
           type="button"
           onClick={onCancel}
@@ -249,7 +320,7 @@ function SectionDetailsStep({ drawerType, form, onCancel, onContinue }) {
           onClick={onContinue}
           className="h-[42px] min-w-[112px] rounded-[8px] bg-[var(--color-assessment-cta)] px-[26px] text-[15px] font-bold text-[var(--color-assessment-cta-text)] shadow-card transition-colors hover:bg-[var(--color-assessment-cta-hover)]"
         >
-          Continue
+          {isEditing ? 'Save changes' : 'Continue'}
         </button>
       </div>
     </>
@@ -274,27 +345,31 @@ function CodingQuestionForm({ form, onCancel, onSubmit }) {
         </div>
 
         <div className="mt-[22px] flex items-center gap-[8px]">
-          <div className="relative flex h-[42px] flex-1 items-center rounded-[8px] border border-border-default bg-surface px-[12px]">
-            <Search className="h-[16px] w-[16px] flex-shrink-0 text-text-primary" strokeWidth={1.9} />
-            <input
+          <div className="relative min-w-0 flex-1">
+            <Search className="pointer-events-none absolute left-[12px] top-1/2 h-[16px] w-[16px] -translate-y-1/2 text-text-primary" strokeWidth={1.9} />
+            <Input
               value={form.taskSearch}
               onChange={event => form.setTaskSearch(event.target.value)}
-              className="ml-[10px] min-w-0 flex-1 bg-transparent text-[15px] font-medium text-text-primary outline-none placeholder:text-text-muted"
+              className="h-[42px] rounded-[8px] border-border-default pl-[38px] pr-[38px] text-[15px] font-medium"
               placeholder="Search for library tasks..."
+              aria-label="Search library tasks"
             />
             {form.taskSearch && (
               <button
                 type="button"
                 onClick={() => form.setTaskSearch('')}
-                className="ml-[8px] flex h-[22px] w-[22px] items-center justify-center rounded-[6px] bg-surface-muted text-text-primary"
+                className="absolute right-[10px] top-1/2 flex h-[22px] w-[22px] -translate-y-1/2 items-center justify-center rounded-[6px] bg-surface-muted text-text-primary"
                 aria-label="Clear task search"
               >
                 <X className="h-[15px] w-[15px]" strokeWidth={2.2} />
               </button>
             )}
           </div>
+          {/* Inert until now - no handler at all. It says what it does instead
+              of doing nothing quietly. */}
           <button
             type="button"
+            onClick={COMING_SOON}
             className="h-[42px] flex-shrink-0 rounded-[8px] bg-[#11172f] px-[16px] text-[15px] font-semibold text-surface transition-opacity hover:opacity-90"
           >
             Create custom task
@@ -326,7 +401,9 @@ function CodingQuestionForm({ form, onCancel, onSubmit }) {
             </button>
             <button
               type="button"
-              className="flex items-center gap-[5px] text-[15px] font-semibold leading-none text-text-secondary"
+              disabled
+              title="Sorting isn't available yet."
+              className="flex cursor-not-allowed items-center gap-[5px] text-[15px] font-semibold leading-none text-text-secondary opacity-40"
             >
               Sort
               <SlidersHorizontal className="h-[14px] w-[14px]" strokeWidth={2} />
@@ -374,25 +451,21 @@ function CodingQuestionForm({ form, onCancel, onSubmit }) {
               </button>
             );
           })}
-          {!form.libraryLoading && form.codingTasks.length === 0 && (
-            <p className="py-[8px] text-center text-[13px] text-text-muted">No tasks match your filters.</p>
+          {/* An honest empty state. This used to be unreachable: the list fell
+              back to four invented tasks whenever the library returned nothing,
+              so "the library has no coding tasks" and "the library has four
+              tasks" looked identical on screen. */}
+          {!form.libraryLoading && !form.libraryError && form.codingTasks.length === 0 && (
+            <p className="py-[14px] text-center text-[13px] text-text-muted">
+              {form.hasLibraryTasks
+                ? 'No tasks match your search or filters.'
+                : 'No coding tasks in the library yet. Add one from the task library to use it here.'}
+            </p>
           )}
         </div>
 
-        <label className="mt-[22px] block text-[15px] font-semibold leading-none text-text-primary">
-          Total Points
-        </label>
-        <div className="relative mt-[10px]">
-          <select
-            value={form.points}
-            onChange={event => form.setPoints(Number(event.target.value))}
-            className="h-[42px] w-full appearance-none rounded-[8px] border border-border-default bg-surface px-[12px] pr-[38px] text-[15px] font-medium text-text-primary outline-none"
-          >
-            {POINT_OPTIONS.map(value => (
-              <option key={value} value={value}>{String(value).padStart(2, '0')}</option>
-            ))}
-          </select>
-          <ChevronDown className="pointer-events-none absolute right-[14px] top-1/2 h-[16px] w-[16px] -translate-y-1/2 text-text-muted" strokeWidth={1.8} />
+        <div className="mt-[22px] max-w-[220px]">
+          <PointsSelect value={form.points} onChange={form.setPoints} label="Total Points" />
         </div>
 
         {form.codingFilterOpen && (
@@ -412,20 +485,20 @@ function CodingQuestionForm({ form, onCancel, onSubmit }) {
             <div className="pt-[18px]">
               <p className="text-[14px] font-medium leading-none text-text-primary">Select the role</p>
               <div className="mt-[11px] flex flex-wrap gap-x-[7px] gap-y-[8px]">
-                {FILTER_ROLES.map((role, index) => {
+                {FILTER_ROLES.map((role) => {
                   // The `&& index === 0` this used to carry meant only the first
                   // role could ever render as selected — clicking any other one
                   // updated state while the radio stayed empty.
                   const active = form.codingFilters.role === role;
                   return (
                     <button
-                      key={`${role}-${index}`}
+                      key={role || 'all-roles'}
                       type="button"
                       onClick={() => form.setCodingFilters(current => ({ ...current, role }))}
                       className="flex h-[25px] items-center rounded-full border border-border-default bg-surface pl-[4px] pr-[10px] text-[13px] font-medium text-text-secondary"
                     >
                       <span className={`mr-[6px] h-[16px] w-[16px] rounded-full border ${active ? 'border-[5px] border-text-primary' : 'border-border-default'}`} />
-                      {role}
+                      {role || 'All roles'}
                     </button>
                   );
                 })}
@@ -434,18 +507,27 @@ function CodingQuestionForm({ form, onCancel, onSubmit }) {
 
             <div className="mt-[22px]">
               <p className="text-[14px] font-medium leading-none text-text-primary">Programming language</p>
-              <div className="relative mt-[10px]">
-                <select
-                  value={form.codingFilters.language}
-                  onChange={event => form.setCodingFilters(current => ({ ...current, language: event.target.value }))}
-                  className="h-[35px] w-full appearance-none rounded-[8px] border border-border-default bg-surface px-[11px] pr-[32px] text-[13px] font-medium text-text-primary outline-none"
-                >
+              {/* Radix Select cannot hold an empty-string item value, so "any
+                  language" travels as the sentinel below and is mapped back to
+                  '' - which is what `getLibraryTasks` reads as "no filter". */}
+              <Select
+                value={form.codingFilters.language || ANY_LANGUAGE}
+                onValueChange={next => form.setCodingFilters(current => ({
+                  ...current,
+                  language: next === ANY_LANGUAGE ? '' : next,
+                }))}
+              >
+                <SelectTrigger aria-label="Programming language" className="mt-[10px] h-[35px] rounded-[8px] border-border-default text-[13px] font-medium">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
                   {LANGUAGE_OPTIONS.map(language => (
-                    <option key={language || 'all'} value={language}>{language || 'e.g. python'}</option>
+                    <SelectItem key={language || ANY_LANGUAGE} value={language || ANY_LANGUAGE}>
+                      {language || 'Any language'}
+                    </SelectItem>
                   ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-[12px] top-1/2 h-[16px] w-[16px] -translate-y-1/2 text-text-muted" strokeWidth={1.8} />
-              </div>
+                </SelectContent>
+              </Select>
               <div className="mt-[9px] flex flex-wrap gap-[6px]">
                 {['Coding assessment', 'Resume'].map(label => (
                   <span key={label} className="flex h-[28px] items-center rounded-full border border-[#8791ff] px-[12px] text-[13px] font-medium text-[#2236df]">
@@ -470,7 +552,7 @@ function CodingQuestionForm({ form, onCancel, onSubmit }) {
                         : 'text-text-secondary'
                     }`}
                   >
-                    {option}
+                    {option === DIFFICULTY_ANY ? 'Any' : option}
                   </button>
                 ))}
               </div>
@@ -830,12 +912,11 @@ function AdaptiveQuestionForm({ form, onCancel, onSubmit, submitLabel = 'Add' })
           <label className="block text-[15px] font-semibold leading-none text-text-primary">
             Interview style
           </label>
-          <div className="relative mt-[10px]">
-            <select
-              value={form.adaptivePreset}
-              onChange={event => form.setAdaptivePreset(event.target.value)}
-              className="h-[42px] w-full appearance-none rounded-[8px] border border-border-default bg-surface px-[12px] pr-[38px] text-[15px] font-medium text-text-primary outline-none"
-            >
+          <Select value={form.adaptivePreset} onValueChange={form.setAdaptivePreset}>
+            <SelectTrigger className="mt-[10px] h-[42px] rounded-[8px] border-border-default text-[15px] font-medium">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
               {ADAPTIVE_PRESET_OPTIONS.map(option => {
                 // Both coding-anchored presets spend part of the question budget
                 // following up on submitted code. With no coding section before
@@ -846,14 +927,13 @@ function AdaptiveQuestionForm({ form, onCancel, onSubmit, submitLabel = 'Add' })
                 const unavailable = !form.codingTaskPrecedesInterview
                   && CODING_ANCHORED_PRESETS.includes(option.value);
                 return (
-                  <option key={option.value} value={option.value} disabled={unavailable}>
-                    {option.label}{unavailable ? ' — needs a coding section first' : ''}
-                  </option>
+                  <SelectItem key={option.value} value={option.value} disabled={unavailable}>
+                    {option.label}{unavailable ? ' \u2014 needs a coding section first' : ''}
+                  </SelectItem>
                 );
               })}
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-[14px] top-1/2 h-[16px] w-[16px] -translate-y-1/2 text-text-muted" strokeWidth={1.8} />
-          </div>
+            </SelectContent>
+          </Select>
           <p className="mt-[6px] text-[13px] leading-[18px] text-text-muted">
             {ADAPTIVE_PRESET_OPTIONS.find(option => option.value === form.adaptivePreset)?.hint}
           </p>
@@ -892,18 +972,16 @@ function AdaptiveQuestionForm({ form, onCancel, onSubmit, submitLabel = 'Add' })
           <label className="block text-[15px] font-semibold leading-none text-text-primary">
             Duration
           </label>
-          <div className="relative mt-[10px]">
-            <select
-              value={form.sectionTimer}
-              onChange={event => form.setSectionTimer(Number(event.target.value))}
-              className="h-[42px] w-full appearance-none rounded-[8px] border border-border-default bg-surface px-[12px] pr-[38px] text-[15px] font-medium text-text-primary outline-none"
-            >
+          <Select value={String(form.sectionTimer)} onValueChange={next => form.setSectionTimer(Number(next))}>
+            <SelectTrigger className="mt-[10px] h-[42px] rounded-[8px] border-border-default text-[15px] font-medium">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
               {ADAPTIVE_TIMER_OPTIONS.map(minutes => (
-                <option key={minutes} value={minutes}>{minutes} minutes</option>
+                <SelectItem key={minutes} value={String(minutes)}>{minutes} minutes</SelectItem>
               ))}
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-[14px] top-1/2 h-[16px] w-[16px] -translate-y-1/2 text-text-muted" strokeWidth={1.8} />
-          </div>
+            </SelectContent>
+          </Select>
           <p className="mt-[6px] text-[13px] leading-[18px] text-text-muted">
             Roughly <span className="font-semibold text-text-secondary">{derivedMax} question{derivedMax === 1 ? '' : 's'}</span>
             {' '}at this length. The interview ends after the last question or when time runs out.
@@ -984,11 +1062,11 @@ function AdaptiveQuestionForm({ form, onCancel, onSubmit, submitLabel = 'Add' })
           <label className="block text-[15px] font-semibold leading-none text-text-primary">
             What will they actually work on? <span className="font-normal text-text-muted">(optional)</span>
           </label>
-          <input
+          <Input
             value={form.adaptiveRoleTitle}
             onChange={event => form.setAdaptiveRoleTitle(event.target.value)}
             placeholder="e.g. Event-driven ingestion pipelines on our billing service"
-            className="mt-[10px] h-[42px] w-full rounded-[8px] border border-border-default bg-surface px-[12px] text-[15px] text-text-primary outline-none placeholder:text-text-muted"
+            className="mt-[10px] h-[42px] rounded-[8px] border-border-default text-[15px]"
           />
         </div>
 
@@ -1010,7 +1088,7 @@ function AdaptiveQuestionForm({ form, onCancel, onSubmit, submitLabel = 'Add' })
                 with no way to act on it, because the drawer is gone and the
                 editor cannot change settings. Rejecting the bad value at the
                 keystroke is the only place the recruiter can still fix it. */}
-            <input
+            <Input
               type="number"
               min={1}
               max={derivedMax}
@@ -1025,7 +1103,7 @@ function AdaptiveQuestionForm({ form, onCancel, onSubmit, submitLabel = 'Add' })
                   String(Math.min(Math.max(parsed, 1), derivedMax)),
                 );
               }}
-              className="mt-[8px] h-[38px] w-[120px] rounded-[8px] border border-border-default bg-surface px-[12px] text-[15px] text-text-primary outline-none"
+              className="mt-[8px] h-[38px] w-[120px] rounded-[8px] border-border-default text-[15px]"
             />
             <p className="mt-[6px] text-[13px] leading-[18px] text-text-muted">
               Capped at {derivedMax} — each focus area can carry at most two questions.
@@ -1036,7 +1114,7 @@ function AdaptiveQuestionForm({ form, onCancel, onSubmit, submitLabel = 'Add' })
             <label className="block text-[14px] font-semibold leading-none text-text-primary">
               Must ask about <span className="font-normal text-text-muted">(one per line)</span>
             </label>
-            <textarea
+            <Textarea
               rows={3}
               value={form.adaptiveMustAsk}
               // 10 lines x 500 chars is what AdaptiveInterviewConfigSerializer
@@ -1045,7 +1123,7 @@ function AdaptiveQuestionForm({ form, onCancel, onSubmit, submitLabel = 'Add' })
               maxLength={ADAPTIVE_MUST_ASK_MAX_TOTAL}
               onChange={event => form.setAdaptiveMustAsk(event.target.value)}
               placeholder="How they would handle a duplicate write"
-              className="mt-[8px] w-full resize-none rounded-[8px] border border-border-default bg-surface px-[12px] py-[10px] text-[14px] text-text-primary outline-none placeholder:text-text-muted"
+              className="mt-[8px] min-h-0 resize-none rounded-[8px] border-border-default text-[14px]"
             />
             <p className="mt-[6px] text-[12px] leading-[16px] text-text-muted">
               Up to 10 lines, 500 characters each.
@@ -1056,7 +1134,7 @@ function AdaptiveQuestionForm({ form, onCancel, onSubmit, submitLabel = 'Add' })
             <label className="block text-[14px] font-semibold leading-none text-text-primary">
               Avoid topics <span className="font-normal text-text-muted">(one per line)</span>
             </label>
-            <textarea
+            <Textarea
               rows={2}
               value={form.adaptiveAvoidTopics}
               // 20 lines x 120 chars server side. The per-line cap here is short
@@ -1065,7 +1143,7 @@ function AdaptiveQuestionForm({ form, onCancel, onSubmit, submitLabel = 'Add' })
               maxLength={ADAPTIVE_AVOID_TOPICS_MAX_TOTAL}
               onChange={event => form.setAdaptiveAvoidTopics(event.target.value)}
               placeholder="Kubernetes internals"
-              className="mt-[8px] w-full resize-none rounded-[8px] border border-border-default bg-surface px-[12px] py-[10px] text-[14px] text-text-primary outline-none placeholder:text-text-muted"
+              className="mt-[8px] min-h-0 resize-none rounded-[8px] border-border-default text-[14px]"
             />
             <p className="mt-[6px] text-[12px] leading-[16px] text-text-muted">
               Short topics, one per line — up to 20 lines, 120 characters each.
@@ -1216,21 +1294,31 @@ export function SectionCreationDrawer({ drawer, form, actions }) {
           side="right"
           className="flex w-[min(760px,54vw)] min-w-[560px] max-w-none flex-col gap-0 p-0"
         >
-          {drawer.step === 'section' ? (
-            <SectionDetailsStep
-              drawerType={drawer.type}
-              form={form}
-              onCancel={() => drawer.close()}
-              onContinue={drawer.continueToQuestion}
-            />
-          ) : (
-            <QuestionStep
-              drawerType={drawer.type}
-              form={form}
-              actions={actions}
-              onCancel={() => drawer.close()}
-            />
-          )}
+          {/* Scoped to the drawer rather than the app root: these are the only
+              tooltips on this screen, and a provider high in the tree would keep
+              a delay timer alive for every route under it. */}
+          <TooltipProvider delayDuration={150} skipDelayDuration={300}>
+            {drawer.step === 'section' ? (
+              <SectionDetailsStep
+                drawerType={drawer.type}
+                form={form}
+                isEditing={drawer.isEditingSection}
+                onCancel={() => drawer.close()}
+                // Editing an existing section ENDS here — there is no question
+                // to author, only the section's own settings to save.
+                onContinue={drawer.isEditingSection
+                  ? actions.saveSectionSettings
+                  : drawer.continueToQuestion}
+              />
+            ) : (
+              <QuestionStep
+                drawerType={drawer.type}
+                form={form}
+                actions={actions}
+                onCancel={() => drawer.close()}
+              />
+            )}
+          </TooltipProvider>
         </SheetContent>
       </Sheet>
 

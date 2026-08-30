@@ -85,7 +85,7 @@ function TopNav() {
           >
             T
           </span>
-          <span className="text-[14.5px] font-bold text-[var(--lp-fg)]" style={{ fontFamily: DISPLAY, letterSpacing: '-0.02em' }}>
+          <span className="font-wordmark text-[14.5px] font-medium text-[var(--lp-fg)]" style={{ letterSpacing: '-0.02em' }}>
             Trudev
           </span>
           <span className="hidden sm:inline text-[11px] text-[var(--lp-fg-faint)]" style={{ fontFamily: MONO }}>
@@ -938,7 +938,7 @@ function Footer() {
             T
           </span>
           <span className="text-[12.5px] text-[var(--lp-fg-dim)]">
-            Trudev — AI Adaptive Interview
+            <span className="font-wordmark font-medium">Trudev</span> — AI Adaptive Interview
           </span>
         </div>
         <div className="flex items-center gap-6">

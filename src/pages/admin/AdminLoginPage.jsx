@@ -60,7 +60,7 @@ export default function AdminLoginPage() {
                   <rect x="9" y="9" width="5" height="5" rx="1" fill="currentColor" />
                 </svg>
               </div>
-              <span className="text-lg font-semibold text-text-primary tracking-tight">TruDev</span>
+              <span className="font-wordmark text-lg font-medium text-text-primary tracking-tight">TruDev</span>
             </div>
             <p className="text-xs text-text-muted uppercase tracking-widest font-medium">
               Platform Admin
