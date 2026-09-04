@@ -21,6 +21,7 @@ export default function ChatBubbleCandidate({ text, candidateName, pending, hide
           (pending ? 'opacity-70 transition-opacity duration-200' : '')
         }
       >
+        <span className="sr-only">You: </span>
         {text}
       </div>
 

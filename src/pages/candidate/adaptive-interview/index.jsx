@@ -31,6 +31,7 @@ import InterviewStatusPanel from './components/InterviewStatusPanel'
 import ExamButton from '../../../components/candidate/exam/ExamButton'
 import InterviewChatScreen from './components/InterviewChatScreen'
 import { useDictation } from './useDictation'
+import { MAX_ANSWER_CHARS } from './components/Composer'
 import { questionToMessages } from './transcript'
 
 const NEXT_QUESTION_POLL_MS = 2000
@@ -125,6 +126,7 @@ export default function CandidateAdaptiveInterviewExperience({
   const [engineRun, setEngineRun] = useState(null)
   const [messages, setMessages] = useState([])
   const [activeQuestion, setActiveQuestion] = useState(null)
+  const previousQuestionIdRef = useRef(null)
   const [pendingNudge, setPendingNudge] = useState(null)
   const [composerValue, setComposerValue] = useState('')
   const [turnState, setTurnState] = useState('idle') // 'idle' | 'sending' | 'thinking'
@@ -176,7 +178,11 @@ export default function CandidateAdaptiveInterviewExperience({
   // enough that sending straight through would measure the recogniser, not them.
   const appendDictatedPhrase = useCallback((phrase) => {
     setUsedDictation(true)
-    setComposerValue((prev) => (prev.trim() ? `${prev.replace(/\s+$/, '')} ${phrase}` : phrase))
+    // The textarea's maxLength does not apply to programmatic appends; past
+    // the cap the engine 422s and the candidate is told to check their connection.
+    setComposerValue((prev) => (
+      (prev.trim() ? `${prev.replace(/\s+$/, '')} ${phrase}` : phrase).slice(0, MAX_ANSWER_CHARS)
+    ))
   }, [])
   const dictation = useDictation({ onCommit: appendDictatedPhrase })
 
@@ -232,6 +238,21 @@ export default function CandidateAdaptiveInterviewExperience({
     if (draftOwnerRef.current !== itemAttemptId) return
     writeDraft(itemAttemptId, composerValue)
   }, [itemAttemptId, composerValue])
+
+  // A draft belongs to the question it was typed against. After a 409 resync
+  // the answer text is restored to the composer (the server may or may not
+  // have recorded it); if the resync then brings the NEXT question, that text
+  // was pre-filled as its answer and one Enter submitted it. Clear when the
+  // active question changes from one real question to another; a page load
+  // (null -> id) keeps the restored draft.
+  const activeQuestionId = activeQuestion?.id || null
+  useEffect(() => {
+    const previousId = previousQuestionIdRef.current
+    previousQuestionIdRef.current = activeQuestionId
+    if (previousId && activeQuestionId && previousId !== activeQuestionId) {
+      setComposerValue('')
+    }
+  }, [activeQuestionId])
 
   // Warn before a reload or a close discards unsent text. Only while there is
   // something to lose — an unconditional handler nags on every normal exit,
@@ -298,8 +319,8 @@ export default function CandidateAdaptiveInterviewExperience({
     return () => clearTimeout(timer)
   }, [screen, farewellSeconds, runAdvance])
 
-  // Codes come from the backend's structured error envelope (data.code); the
-  // legacy status-only fallbacks keep older responses working.
+  // Codes come from the backend's structured error envelope (data.code). A
+  // 409 with no code is treated as out-of-sync, never as expiry.
   const handleFailure = useCallback(async (err) => {
     const code = err?.code || ''
     if (code === 'interview_complete') {
@@ -313,8 +334,13 @@ export default function CandidateAdaptiveInterviewExperience({
       }
       return
     }
-    if (code === 'section_expired' || code === 'run_expired' || (err?.status === 409 && !code)) {
-      setStatusMessage(err.message || 'Section timer has expired.')
+    if (code === 'section_expired' || code === 'run_expired') {
+      // Server-side expiry (a refresh after the deadline, a submit that was
+      // in flight when the clock ran out). The answers already given are
+      // finalized by the server sweep; the candidate's only job is to move
+      // on, and this screen used to offer nothing to click. The Continue
+      // button on the expired panel calls onRequestNextAction.
+      setStatusMessage(err.message || "Time's up. The answers you gave were submitted for scoring.")
       setScreen('expired')
       return
     }
@@ -720,7 +746,11 @@ export default function CandidateAdaptiveInterviewExperience({
         // outage is not a connectivity problem and must not be described as one.
         err?.status === 503
           ? "The interviewer service is temporarily unavailable — your answer is still here. Try again in a moment."
-          : "Your answer wasn't sent — check your connection and try again.",
+          : err?.status === 422
+            ? "Your answer couldn't be accepted — it may be too long or empty. Edit it and try again."
+            : err?.code === 'timeout'
+              ? err.message
+              : "Your answer wasn't sent — check your connection and try again.",
       )
     }
   }, [
@@ -856,7 +886,11 @@ export default function CandidateAdaptiveInterviewExperience({
   if (screen === 'expired') {
     return (
       <ExamShell branding={branding} topBar={topBar}>
-        <InterviewStatusPanel variant="expired" message={statusMessage} />
+        <InterviewStatusPanel
+          variant="expired"
+          message={statusMessage}
+          onContinue={onRequestNextAction}
+        />
       </ExamShell>
     )
   }

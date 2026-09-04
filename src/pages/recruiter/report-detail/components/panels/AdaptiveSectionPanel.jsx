@@ -362,6 +362,38 @@ function Transcript({ transcript, snapshotVersion }) {
               </p>
             )}
 
+            {/* The authored requirement checklist the level was computed from —
+                what a disputed 2/4 actually needs. `not_asked` items are ones the
+                interviewer never gave an opening for; they neither cost nor
+                certify. */}
+            {entry.requirements?.length > 0 && (
+              <ul className="mt-[6px] space-y-[2px]" aria-label="Requirement checklist">
+                {entry.requirements.map((item, i) => {
+                  const met = item.verdict === 'met';
+                  const notAsked = item.verdict === 'not_asked';
+                  return (
+                    <li
+                      key={i}
+                      className={
+                        'text-[11px] leading-[16px] ' + (met ? 'text-text-secondary' : 'text-text-muted')
+                      }
+                    >
+                      <span aria-hidden="true" className="mr-[4px] font-mono">
+                        {met ? '✓' : notAsked ? '–' : '✗'}
+                      </span>
+                      <span className="sr-only">{met ? 'Met: ' : notAsked ? 'Not asked: ' : 'Not met: '}</span>
+                      {item.requirement}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            {entry.safety_blocked && (
+              <p className="mt-[5px] text-[11px] leading-[16px] text-text-muted">
+                Withheld from scoring: the AI provider refused to process this answer&rsquo;s content.
+              </p>
+            )}
+
             {entry.evidence?.length > 0 && (
               <div className="mt-[5px] border-l-2 border-border-default pl-[8px]">
                 {entry.evidence.map((quote, i) => (
@@ -490,6 +522,7 @@ export function AdaptiveSectionPanel({ section, report }) {
   const context = data.interview_context || {};
   const requiredIntents = data.required_intents || [];
   const contextBits = [
+    data.scoring_policy_version && `Scored by ${data.scoring_model || 'the engine'} · policy ${data.scoring_policy_version}`,
     context.seniority && SENIORITY_LABELS[context.seniority] || context.seniority,
     context.role_title || context.role_family,
     context.preset && PRESET_LABELS[context.preset],

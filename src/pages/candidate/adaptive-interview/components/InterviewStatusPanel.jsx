@@ -3,11 +3,12 @@ import { IconAlertTriangle, IconCircleCheck, IconClockPause } from '@tabler/icon
 import ExamButton from '../../../../components/candidate/exam/ExamButton'
 
 // Shared centered state for the non-chat screens: loading, complete (the
-// interview finished normally), section-expired (terminal, server already
-// marked it skipped — no submit action), and service-unavailable (with a
+// interview finished normally), section-expired (terminal; the answers already
+// given are finalized server-side, and Continue moves the candidate on), and
+// service-unavailable (with a
 // manual retry). Mirrors the loading/timeup treatment in
 // CandidateMcqSectionExperience.jsx.
-export default function InterviewStatusPanel({ variant, message, onRetry }) {
+export default function InterviewStatusPanel({ variant, message, onRetry, onContinue }) {
   if (variant === 'loading') {
     return (
       <div className="flex min-h-[50vh] flex-col items-center justify-center gap-5 text-center">
@@ -70,6 +71,11 @@ export default function InterviewStatusPanel({ variant, message, onRetry }) {
       {!isExpired && !isComplete && !isMisconfigured && onRetry && (
         <ExamButton size="lg" className="w-full" onClick={onRetry}>
           Try again
+        </ExamButton>
+      )}
+      {isExpired && onContinue && (
+        <ExamButton size="lg" className="w-full" onClick={onContinue}>
+          Continue
         </ExamButton>
       )}
     </div>

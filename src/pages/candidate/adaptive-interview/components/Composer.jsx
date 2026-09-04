@@ -4,7 +4,7 @@ import { cn } from '../../../../lib/utils'
 
 // Engine rejects answers over 65,536 chars with a 422; cap slightly below so a
 // giant paste is trimmed client-side instead of erroring after send.
-const MAX_ANSWER_CHARS = 65000
+export const MAX_ANSWER_CHARS = 65000
 const COUNTER_THRESHOLD = 60000
 
 // The box starts at roughly three lines and grows to about eight before it

@@ -30,6 +30,7 @@ export default function ChatBubbleAI({ text, isNudge, hideAvatar }) {
             'px-4 py-3 text-[14px] leading-[1.65] text-text-primary shadow-[0_1px_2px_rgba(0,0,0,0.28)]'
           }
         >
+          <span className="sr-only">{isNudge ? 'Interviewer follow-up: ' : 'Interviewer: '}</span>
           {text}
         </div>
       </div>

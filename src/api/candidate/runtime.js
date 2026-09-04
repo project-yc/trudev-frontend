@@ -6,14 +6,33 @@ const JSON_HEADERS = {
 
 const parseJson = async (response) => response.json().catch(() => ({}))
 
-export const requestCandidate = async (url, token, options = {}, { unwrapData = true } = {}) => {
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      ...(options.headers || {}),
-      Authorization: `Bearer ${token}`,
-    },
-  })
+export const requestCandidate = async (url, token, options = {}, { unwrapData = true, timeoutMs } = {}) => {
+  // Opt-in timeout. Without one a stalled mobile connection left a bare
+  // `fetch` hanging for minutes while the section clock ran and the composer
+  // stayed disabled. Callers that do not pass `timeoutMs` are unchanged.
+  const controller = timeoutMs ? new AbortController() : null
+  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null
+  let response
+  try {
+    response = await fetch(url, {
+      ...options,
+      ...(controller ? { signal: controller.signal } : {}),
+      headers: {
+        ...(options.headers || {}),
+        Authorization: `Bearer ${token}`,
+      },
+    })
+  } catch (err) {
+    if (err?.name === 'AbortError') {
+      const timeoutError = new Error('The request took too long. Check your connection and try again.')
+      timeoutError.status = 0
+      timeoutError.code = 'timeout'
+      throw timeoutError
+    }
+    throw err
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
 
   const body = await parseJson(response)
   if (!response.ok) {
