@@ -386,7 +386,11 @@ export default function CandidateSectionRuntimePage() {
         if (!runtimeState.workspaceUrl) {
           // Paused (cold) or the container died: ask the backend for the
           // next action. For a paused session that call resumes the clock
-          // and relaunches the workspace from the pause snapshot.
+          // and relaunches the workspace from the pause snapshot — a ~30s
+          // Fargate launch. Show the provisioning boot screen for the whole
+          // wait (the poll effect below only starts once workspaceUrl is set),
+          // rather than leaving the Resume button sitting there doing nothing.
+          setScreen('booting')
           try {
             const nextAction = await getCandidateNextAction(instanceId, runtimeState.sectionToken, { resume: true })
             if (nextAction.next_action !== 'launch_coding') {
@@ -394,11 +398,11 @@ export default function CandidateSectionRuntimePage() {
               return
             }
             const nextRuntime = saveCandidateRuntimeState(nextAction)
-            setRuntimeState(nextRuntime)
             setPausedReturn(false)
-            setScreen('booting')
+            setRuntimeState(nextRuntime)
           } catch (resumeError) {
             setError(resumeError.message || 'Could not relaunch the workspace')
+            setScreen('overview')
           }
           return
         }

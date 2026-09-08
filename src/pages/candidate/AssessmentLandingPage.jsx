@@ -11,7 +11,7 @@ import {
   IconMessages,
   IconWriting,
 } from '@tabler/icons-react'
-import { getAssessmentOverview } from '../../api/candidate/assessmentSession'
+import { getAssessmentOverview, startAssessment } from '../../api/candidate/assessmentSession'
 import { saveCandidateBranding } from '../../theme/CandidateThemeProvider.jsx'
 import {
   CandidateCenteredErrorState,
@@ -22,6 +22,7 @@ import {
 } from '../../components/candidate/CandidateSectionScaffold'
 import { CANDIDATE_AI_LEVEL_LABELS, formatAiLevel } from '../../constants/aiLevels'
 import { buildAssessmentTermsRoute } from '../../routes/candidateRoutes'
+import { handleAssessmentStartResponse } from './assessmentStartNavigation'
 
 const UNKNOWN_SECTION_CONFIG = {
   label: 'Section',
@@ -64,6 +65,7 @@ export default function AssessmentLandingPage() {
   const [overview, setOverview] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [resuming, setResuming] = useState(false)
 
   useEffect(() => {
     getAssessmentOverview(token)
@@ -80,6 +82,23 @@ export default function AssessmentLandingPage() {
     navigate(buildAssessmentTermsRoute(token), { state: { overview } })
   }
 
+  // Resume: the candidate already started (and accepted terms), so re-running
+  // T&C + the section intro is wrong. Start the run directly — the backend
+  // reports the next action (for a paused coding section, `paused: true` with no
+  // relaunch) and the section runtime renders its Resume Section screen with the
+  // clock still stopped until the candidate chooses to continue.
+  const handleResume = async () => {
+    setResuming(true)
+    setError('')
+    try {
+      const data = await startAssessment(token, { terms_accepted: true })
+      handleAssessmentStartResponse(data, { token, overview, navigate })
+    } catch (e) {
+      setError(e.message || 'Failed to resume assessment')
+      setResuming(false)
+    }
+  }
+
   if (loading) {
     return <CandidateCenteredLoadingState label="Loading assessment..." />
   }
@@ -93,6 +112,9 @@ export default function AssessmentLandingPage() {
   const instanceStatus = String(overview.instance_status || '').toUpperCase()
   const alreadySubmitted = instanceStatus === 'SUBMITTED'
   const expired = instanceStatus === 'EXPIRED'
+  // An in-progress instance means the candidate already began (and accepted the
+  // terms). This is a resume, not a fresh start.
+  const resumable = instanceStatus === 'IN_PROGRESS'
 
   return (
     <CandidatePageShell>
@@ -192,6 +214,14 @@ export default function AssessmentLandingPage() {
           </ul>
         </div>
 
+      {resumable && !alreadySubmitted && !expired && (
+        <div className="bg-brand-tint border border-brand-border rounded-xl px-4 py-3 text-center">
+          <p className="text-brand-deep text-sm font-medium">
+            You have an assessment in progress. Resume where you left off — your work is saved.
+          </p>
+        </div>
+      )}
+
       {error ? <CandidateErrorBanner>{error}</CandidateErrorBanner> : null}
 
       {alreadySubmitted ? (
@@ -202,6 +232,11 @@ export default function AssessmentLandingPage() {
         <p className="text-text-primary text-sm text-center">
           This assessment has expired. Contact the hiring team if you believe this is a mistake.
         </p>
+      ) : resumable ? (
+      <CandidatePrimaryButton onClick={handleResume} disabled={resuming}>
+        {resuming ? 'Resuming…' : 'Resume Assessment'}
+        <IconChevronRight size={16} />
+      </CandidatePrimaryButton>
       ) : (
       <CandidatePrimaryButton onClick={handleStart}>
         Begin Assessment

@@ -11,6 +11,7 @@ import {
   filterCandidates,
   hasActiveReport,
   orderByRankEligibility,
+  selectReportableRows,
 } from '../utils/reportRows';
 
 const EMPTY_ROWS = [];
@@ -100,10 +101,13 @@ export function useReportsTable(assessmentId) {
   const metrics = useMemo(() => deriveReportMetrics(candidates), [candidates]);
 
   // Rank-eligible candidates by score, then the unranked bucket. Ordered
-  // before pagination so rank positions are stable across pages.
+  // before pagination so rank positions are stable across pages. Sourced from
+  // every reviewable row (submitted, or a report that reached a real state) —
+  // not `metrics.submitted`, which gates on the instance status column and hid
+  // finalized reports whose instance settled on another status.
   const filtered = useMemo(
-    () => orderByRankEligibility(filterCandidates(metrics.submitted, debouncedSearch)),
-    [metrics.submitted, debouncedSearch],
+    () => orderByRankEligibility(filterCandidates(selectReportableRows(candidates), debouncedSearch)),
+    [candidates, debouncedSearch],
   );
 
   const unrankedStart = filtered.findIndex(row => !row.rankEligible);

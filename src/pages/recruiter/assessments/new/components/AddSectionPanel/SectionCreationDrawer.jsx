@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   Check,
   FileText,
@@ -333,7 +334,105 @@ function SectionDetailsStep({ drawerType, form, onCancel, onContinue, isEditing 
   );
 }
 
+/**
+ * Read-only detail for a library coding task, opened from the picker's "View
+ * details". Everything comes off the list row the picker already holds
+ * (`LibraryItemListSerializer` — title, difficulty/seniority/domain/language,
+ * tags, estimated time, and `type_data` for the source), so it needs no extra
+ * fetch. Previously "View details" was a bare <span> with no handler.
+ */
+function CodingTaskDetailDialog({ task, onClose }) {
+  if (!task) return null;
+
+  const manifest = task.type_data?.task_manifest_json || {};
+  const description = manifest.description || manifest.instructions || manifest.summary || '';
+  const sourceType = task.type_data?.source_type;
+  const gitRepoUrl = task.type_data?.git_repo_url;
+  const meta = [
+    ['Difficulty', task.difficulty],
+    ['Seniority', task.seniority],
+    ['Domain', task.domain],
+    ['Language', task.language || task.primary_language],
+    ['Est. time', task.estimated_time_minutes ? `${task.estimated_time_minutes} min` : null],
+    ['Source', sourceType === 'git' ? 'Git repository' : sourceType === 'local' ? 'Uploaded bundle' : null],
+  ].filter(([, value]) => value);
+  const tags = task.tags || [];
+
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 px-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-[520px] rounded-[12px] bg-surface p-[22px] shadow-modal"
+        onClick={event => event.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-[12px]">
+          <h3 className="text-[17px] font-bold text-text-primary">
+            {task.title || task.name || 'Untitled task'}
+          </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close details"
+            className="flex h-[28px] w-[28px] flex-shrink-0 items-center justify-center rounded-[6px] bg-surface-muted text-text-primary"
+          >
+            <X className="h-[16px] w-[16px]" strokeWidth={2.2} />
+          </button>
+        </div>
+
+        {meta.length > 0 && (
+          <dl className="mt-[16px] grid grid-cols-2 gap-x-[16px] gap-y-[10px]">
+            {meta.map(([label, value]) => (
+              <div key={label}>
+                <dt className="text-[12px] font-medium uppercase tracking-wide text-text-muted">{label}</dt>
+                <dd className="mt-[2px] text-[14px] font-medium capitalize text-text-primary">{value}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
+
+        {gitRepoUrl && (
+          <p className="mt-[12px] break-all text-[13px] text-text-secondary">
+            <span className="font-semibold text-text-primary">Repository: </span>
+            {gitRepoUrl}
+          </p>
+        )}
+
+        {tags.length > 0 && (
+          <div className="mt-[16px]">
+            <p className="text-[12px] font-medium uppercase tracking-wide text-text-muted">Tags</p>
+            <div className="mt-[6px] flex flex-wrap gap-[6px]">
+              {tags.map(tag => (
+                <span key={tag} className="rounded-full border border-border-default bg-surface-muted px-[10px] py-[3px] text-[12px] font-medium text-text-secondary">
+                  {tag}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {description ? (
+          <div className="mt-[16px]">
+            <p className="text-[12px] font-medium uppercase tracking-wide text-text-muted">Description</p>
+            <p className="mt-[6px] max-h-[220px] overflow-y-auto whitespace-pre-wrap text-[14px] leading-[20px] text-text-secondary">
+              {description}
+            </p>
+          </div>
+        ) : (
+          <p className="mt-[16px] text-[13px] leading-[18px] text-text-muted">
+            This task carries no written description. Its starter files and hidden-test rubric are
+            applied when a candidate runs the section.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function CodingQuestionForm({ form, onCancel, onSubmit }) {
+  const [detailTask, setDetailTask] = useState(null);
+
   return (
     <>
       <div className="flex h-[56px] flex-shrink-0 items-center border-b border-border-subtle px-[22px]">
@@ -434,27 +533,40 @@ function CodingQuestionForm({ form, onCancel, onSubmit }) {
             // task #0 and it looked like they had chosen it.
             const selected = form.selectedTask?.id === task.id;
             return (
-              <button
+              // Not a single <button> any more: the row's select target and the
+              // "View details" control are sibling buttons (nesting one button
+              // inside another is invalid and swallowed the details click).
+              <div
                 key={task.id}
-                type="button"
-                onClick={() => form.setSelectedTask(task)}
                 className={`grid h-[48px] w-full grid-cols-[44px_minmax(0,1fr)_106px] items-center gap-[10px] rounded-[8px] px-[8px] text-left transition-colors ${
                   selected ? 'bg-[#f7f7f7]' : 'bg-transparent hover:bg-surface-muted'
                 }`}
               >
-                <span className={`h-[34px] w-[34px] rounded-[7px] ${selected ? 'bg-surface' : 'bg-[#ededed]'}`} />
-                <span className="min-w-0">
+                <button
+                  type="button"
+                  onClick={() => form.setSelectedTask(task)}
+                  aria-label={`Select ${taskTitle}`}
+                  aria-pressed={selected}
+                  className={`h-[34px] w-[34px] rounded-[7px] ${selected ? 'bg-surface ring-2 ring-brand' : 'bg-[#ededed]'}`}
+                />
+                <button
+                  type="button"
+                  onClick={() => form.setSelectedTask(task)}
+                  className="min-w-0 text-left"
+                >
                   <span className="block truncate text-[15px] font-semibold leading-[18px] text-text-primary">{taskTitle}</span>
                   <span className="mt-[3px] block truncate text-[13px] font-medium leading-none text-[#52657d]">
                     {[language, ...tags].filter(Boolean).join('  -  ')}
                   </span>
-                </span>
-                {selected && (
-                  <span className="ml-auto flex h-[34px] w-[106px] items-center justify-center rounded-[8px] border border-border-default bg-surface text-[14px] font-semibold text-text-primary">
-                    View details
-                  </span>
-                )}
-              </button>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDetailTask(task)}
+                  className="ml-auto flex h-[34px] w-[106px] items-center justify-center rounded-[8px] border border-border-default bg-surface text-[14px] font-semibold text-text-primary hover:bg-surface-hover"
+                >
+                  View details
+                </button>
+              </div>
             );
           })}
           {/* An honest empty state. This used to be unreachable: the list fell
@@ -568,6 +680,8 @@ function CodingQuestionForm({ form, onCancel, onSubmit }) {
       </div>
 
       <DrawerFooter onCancel={onCancel} onSubmit={onSubmit} />
+
+      <CodingTaskDetailDialog task={detailTask} onClose={() => setDetailTask(null)} />
     </>
   );
 }

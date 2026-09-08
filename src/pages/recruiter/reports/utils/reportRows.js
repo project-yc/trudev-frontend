@@ -102,6 +102,30 @@ export function filterCandidates(rows, query) {
 }
 
 /**
+ * Rows the Reviews table should show. A candidate belongs on the list once they
+ * have produced something to review: they submitted, or a report exists that
+ * reached a real state (ready / analyzing / failed).
+ *
+ * Visibility is keyed on report readiness, not only on
+ * `instanceStatus === 'Submitted'`. Keying it on the instance status column
+ * alone hid a finalized report whenever its instance settled on another status
+ * — an expired timed-out section, or a multi-section assessment where the
+ * coding section is done but a later section was never attempted. A completed
+ * report must always be visible.
+ *
+ * Review status never gates visibility: a `requires_human_review` report still
+ * shows, in the unranked bucket (see `orderByRankEligibility`).
+ */
+export function selectReportableRows(rows) {
+  return rows.filter(row => (
+    row.instanceStatus === SUBMITTED_STATUS ||
+    row.state === REPORT_STATE.READY ||
+    row.state === REPORT_STATE.ANALYZING ||
+    row.state === REPORT_STATE.FAILED
+  ));
+}
+
+/**
  * Metric tile values. Submitted rows are the denominator — a candidate who
  * never submitted is not a report in any sense the screen cares about.
  */
