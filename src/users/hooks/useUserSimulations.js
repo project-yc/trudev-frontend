@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import userApi from '../services/api';
 import { getPublicAssessmentTasks, getUserSimulationById } from '../services/dashboardService';
+import { unwrapData } from '../services/unwrap';
 
 const DOMAIN_OPTIONS = [
   'ALL_DOMAINS',
@@ -146,7 +147,8 @@ export const useUserSimulations = () => {
         params: queryParams,
       });
 
-      const publicAssessments = toArray(publicResponse.data?.data);
+      // `userApi` already returns the body; one unwrap strips the ApiResponse envelope.
+      const publicAssessments = toArray(unwrapData(publicResponse));
 
       const detailResults = await Promise.allSettled(
         publicAssessments.map((assessment) => getUserSimulationById(assessment.id)),

@@ -5,6 +5,7 @@ import { AlertCircle } from 'lucide-react';
 import { TooltipProvider } from '../../../components/ui/tooltip';
 import { AskAnythingBar } from '../../../components/recruiter/AskAnythingBar.jsx';
 import { createAssessment } from '../../../api/recruiter/assessment.jsx';
+import { closeAssessment } from '../../../api/recruiter/assessments';
 import { useAssessmentsTable } from './hooks/useAssessmentsTable';
 import { AssessmentsToolbar } from './components/AssessmentsToolbar';
 import { AssessmentsStatStrip } from './components/AssessmentsStatStrip';
@@ -15,6 +16,7 @@ export default function AssessmentsListPage() {
   const navigate = useNavigate();
   const [duplicatingId, setDuplicatingId] = useState(null);
   const [duplicateError, setDuplicateError] = useState('');
+  const [closingId, setClosingId] = useState(null);
 
   const {
     rows,
@@ -82,6 +84,28 @@ export default function AssessmentsListPage() {
     [refetch],
   );
 
+  const handleClose = useCallback(
+    async row => {
+      const confirmed = window.confirm(
+        `Close "${row.name}"?\n\nNo new candidates can be invited and pending invites are revoked. Candidates already in progress can finish.`,
+      );
+      if (!confirmed) return;
+      setDuplicateError('');
+      setClosingId(row.id);
+      try {
+        await closeAssessment(row.id);
+        await refetch();
+      } catch (err) {
+        setDuplicateError(
+          err?.response?.data?.message || err?.message || 'Failed to close assessment.',
+        );
+      } finally {
+        setClosingId(null);
+      }
+    },
+    [refetch],
+  );
+
   const errorMessage = error || duplicateError;
 
   return (
@@ -128,6 +152,8 @@ export default function AssessmentsListPage() {
                 onEdit={handleEdit}
                 onDuplicate={handleDuplicate}
                 duplicatingId={duplicatingId}
+                onClose={handleClose}
+                closingId={closingId}
               />
 
               {!loading && totalCount > 0 && (

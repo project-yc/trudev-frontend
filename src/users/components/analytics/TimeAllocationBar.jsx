@@ -1,11 +1,16 @@
+// Active-time segments. The backend computes these as a share of ACTIVE time,
+// while `idle_pct` is a share of the wall clock (deterministic_analysis
+// `_time_breakdown`). Listing idle alongside them made the legend sum past
+// 100%, so idle is reported separately below.
 const SEGMENT_DEFINITIONS = [
   { key: 'planning_pct', label: 'Planning', barClass: 'bg-gray-500' },
   { key: 'coding_pct', label: 'Coding', barClass: 'bg-cyan-400' },
   { key: 'debugging_pct', label: 'Debugging', barClass: 'bg-teal-400' },
   { key: 'testing_pct', label: 'Testing', barClass: 'bg-cyan-600' },
   { key: 'ai_collab_pct', label: 'AI Usage', barClass: 'bg-gray-400' },
-  { key: 'idle_pct', label: 'Idle', barClass: 'bg-gray-600' },
 ];
+
+const formatPercent = (value) => (Number.isInteger(value) ? value : Math.round(value * 10) / 10);
 
 const COLUMN_SPAN_CLASS = {
   0: 'hidden',
@@ -87,10 +92,22 @@ export default function TimeAllocationBar({ timeBreakdown }) {
   }));
 
   const units = buildSegmentUnits(segments);
+  const idlePercent = toSafePercent(timeBreakdown?.idle_pct);
 
   return (
     <section className="rounded-xl border border-[#1e2130] bg-[#13151f] p-5">
       <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-gray-500">Time Allocation</p>
+
+      <p className="mb-3 text-xs text-gray-400">
+        {idlePercent > 0 ? (
+          <>
+            <span className="font-semibold text-gray-300">{formatPercent(idlePercent)}% of session idle</span>
+            {' · of active time:'}
+          </>
+        ) : (
+          'Of active time:'
+        )}
+      </p>
 
       <div className="grid grid-cols-12 overflow-hidden rounded-full border border-[#1e2130] bg-[#0c0f18]">
         {segments.map((segment, index) => (
@@ -107,7 +124,7 @@ export default function TimeAllocationBar({ timeBreakdown }) {
           <div key={segment.key} className="flex items-center gap-2">
             <span className={`h-2 w-2 rounded-full ${segment.barClass}`} />
             <span>
-              {segment.label} ({segment.percent}%)
+              {segment.label} ({formatPercent(segment.percent)}%)
             </span>
           </div>
         ))}

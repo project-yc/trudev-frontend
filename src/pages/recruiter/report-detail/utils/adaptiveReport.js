@@ -5,6 +5,11 @@
 // the shared formatter reads badly.
 
 import { formatCompetencyLabel as formatKey } from '../../../../utils/competencyLabels';
+import { formatDuration, scoreToneTokens, toFiniteNumber } from './reportFormat';
+
+// "4m 12s" / "48s" — null when no timing was captured. Shared implementation;
+// re-exported so the adaptive panel keeps one import for this module.
+export { formatDuration };
 
 const LABEL_OVERRIDES = {
   testing_validation: 'Testing & validation',
@@ -21,50 +26,16 @@ export function formatCompetencyLabel(key) {
   return formatKey(key);
 }
 
-/**
- * Read a snapshot number, treating "absent" as unknown rather than as zero.
- *
- * `Number(null)` is 0 and `Number('')` is 0 — both finite — so every guard in
- * this file that went straight to `Number.isFinite(Number(value))` accepted the
- * backend's explicit nulls and rendered them as a real measurement. The snapshot
- * writes null in several places and always means "we do not have this", never
- * "zero":
- *
- *   - `_attach_response_times` sets `response_seconds = None` for any answer
- *     whose timestamp it could not parse or that predates the run start, so a
- *     question with no usable timing rendered "0s" beside the answer — a claim
- *     that the candidate answered instantly.
- *   - `total_seconds` is None when no answer was timed at all, which rendered
- *     "0s total" under the header of a real interview.
- *   - A competency or an answer the scorer returned nothing usable for carries
- *     `score: None` / `max_score: None`, which rendered as a bold red 0/4 (0%)
- *     on a competency that was never graded.
- *
- * This is the same coercion trap already documented on the per-question score
- * chip in AdaptiveSectionPanel; these were its siblings. Route every numeric
- * read through here so null can only ever fall back, never round-trip to 0.
- */
-function toFiniteNumber(value) {
-  if (value === null || value === undefined || value === '') return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
+// Every numeric read in this file goes through `toFiniteNumber` (reportFormat)
+// so the snapshot's explicit nulls — `response_seconds`, `total_seconds`,
+// `score`/`max_score` for an ungraded competency — fall back instead of
+// rendering as a real 0 ("0s", "0s total", a bold red 0/4).
 
 /**
  * Competency scores are on their own scale (4 of 5), not 0-100, so tone comes
- * from the ratio rather than the raw number.
+ * from the ratio rather than the raw number. Same bands as every other score.
  */
-export function getRatioTone(score, maxScore) {
-  const value = toFiniteNumber(score);
-  const max = toFiniteNumber(maxScore);
-  if (value === null || max === null || max <= 0) {
-    return { text: 'text-text-muted', dot: 'bg-border-default' };
-  }
-  const ratio = value / max;
-  if (ratio >= 0.75) return { text: 'text-success', dot: 'bg-success' };
-  if (ratio >= 0.4) return { text: 'text-warning', dot: 'bg-warning' };
-  return { text: 'text-error', dot: 'bg-error' };
-}
+export const getRatioTone = scoreToneTokens;
 
 /** Trims trailing zeros so 4.0 renders as "4" and 4.2 stays "4.2". */
 export function formatScoreValue(value) {
@@ -81,8 +52,12 @@ export function joinRationales(rationales) {
  * Rubric levels are out of 4 while the section score is out of 100. Rendering
  * the percentage alongside means a recruiter doesn't have to reconcile the two
  * scales themselves.
+ *
+ * Named for what it does — a ratio of two numbers — because codingReport's
+ * `formatPercent(value)` takes a single 0-1 or 0-100 value and the two are not
+ * interchangeable.
  */
-export function formatPercent(score, maxScore) {
+export function formatRatioPercent(score, maxScore) {
   const value = toFiniteNumber(score);
   const max = toFiniteNumber(maxScore);
   if (value === null || max === null || max <= 0) return null;
@@ -104,22 +79,6 @@ export function describeCaps(capsApplied) {
   const caps = (capsApplied || []).filter(Boolean);
   if (!caps.length) return null;
   return caps.map(cap => CAP_LABELS[cap] || `Capped — ${cap.replace(/_/g, ' ')}`).join(' · ');
-}
-
-/**
- * "4m 12s" / "48s" — omitted entirely when no timing was captured.
- *
- * "No timing" is written as an explicit `null` by `_attach_response_times`, and
- * `Number(null)` is 0, so this used to answer "0s" for an untimed answer and
- * "0s total" for an untimed run. `toFiniteNumber` rejects null before coercion.
- */
-export function formatDuration(seconds) {
-  const total = toFiniteNumber(seconds);
-  if (total === null || total < 0) return null;
-  if (total < 60) return `${Math.round(total)}s`;
-  const minutes = Math.floor(total / 60);
-  const remainder = Math.round(total % 60);
-  return remainder ? `${minutes}m ${remainder}s` : `${minutes}m`;
 }
 
 /**

@@ -1,19 +1,13 @@
 import { Info } from 'lucide-react';
 import { cn } from '../../../../../lib/utils';
 import { Skeleton } from '../../../../../components/ui/skeleton';
-import { PanelBlock } from '../SectionPanel';
+import { PanelBlock, PanelError } from '../SectionPanel';
 import { ScoreGauge } from '../ScoreGauge';
-import { useRankingSectionReport } from '../../hooks/useRankingSectionReport';
+import { useSectionReport } from '../../hooks/useSectionReport';
+import { getRankingSectionReport } from '../../../../../api/recruiter/reports';
+import { scoreTone } from '../../utils/reportFormat';
 
 const EXACT_MATCH = 'exact_match';
-
-function scoreTone(normalized) {
-  const value = Number(normalized);
-  if (!Number.isFinite(value)) return 'text-text-muted';
-  if (value >= 75) return 'text-success';
-  if (value >= 40) return 'text-warning';
-  return 'text-error';
-}
 
 /**
  * One question. Positions are marked individually rather than reduced to a
@@ -86,9 +80,11 @@ function RankingQuestionBlock({ question }) {
 }
 
 export function RankingSectionPanel({ section, report }) {
-  const { data, loading, error } = useRankingSectionReport(
+  const { data, loading, error } = useSectionReport(
+    getRankingSectionReport,
     report?.assessment_instance_id,
     section?.section_id,
+    'Failed to load rankings.',
   );
 
   if (loading) {
@@ -100,15 +96,7 @@ export function RankingSectionPanel({ section, report }) {
     );
   }
 
-  if (error) {
-    return (
-      <PanelBlock>
-        <div className="rounded-[10px] border border-error-border bg-error-bg px-[12px] py-[9px]">
-          <p className="text-[12px] leading-[17px] text-error">{error}</p>
-        </div>
-      </PanelBlock>
-    );
-  }
+  if (error) return <PanelError>{error}</PanelError>;
 
   if (!data) return null;
 

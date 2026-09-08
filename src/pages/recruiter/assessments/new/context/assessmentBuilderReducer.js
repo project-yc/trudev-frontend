@@ -41,7 +41,7 @@ export const initialState = {
 };
 
 // ─── Helper: create a blank MCQ question ──────────────────────────────────────
-export function makeMcqQuestion() {
+function makeMcqQuestion() {
   return {
     id: crypto.randomUUID(),
     type: 'mcq',
@@ -59,7 +59,7 @@ export function makeMcqQuestion() {
   };
 }
 
-export function makeFreeTextQuestion() {
+function makeFreeTextQuestion() {
   return {
     id: crypto.randomUUID(),
     type: 'free_text',
@@ -75,7 +75,7 @@ export function makeFreeTextQuestion() {
   };
 }
 
-export function makeRankingQuestion() {
+function makeRankingQuestion() {
   return {
     id: crypto.randomUUID(),
     type: 'ranking',
@@ -90,7 +90,7 @@ export function makeRankingQuestion() {
   };
 }
 
-export function makeCodingItem() {
+function makeCodingItem() {
   return {
     id: crypto.randomUUID(),
     type: 'coding',

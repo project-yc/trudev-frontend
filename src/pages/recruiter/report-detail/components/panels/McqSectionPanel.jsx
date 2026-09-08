@@ -7,9 +7,10 @@ import {
   TabsList,
   TabsTrigger,
 } from '../../../../../components/ui/tabs';
-import { PanelBlock } from '../SectionPanel';
+import { PanelBlock, PanelError } from '../SectionPanel';
 import { ScoreGauge } from '../ScoreGauge';
-import { useMcqSectionReport } from '../../hooks/useMcqSectionReport';
+import { useSectionReport } from '../../hooks/useSectionReport';
+import { getMcqSectionReport } from '../../../../../api/recruiter/reports';
 
 const FILTERS = [
   { key: 'all', label: 'All' },
@@ -76,9 +77,11 @@ function QuestionRow({ question }) {
 
 export function McqSectionPanel({ section, report }) {
   const [filter, setFilter] = useState('all');
-  const { data, loading, error } = useMcqSectionReport(
+  const { data, loading, error } = useSectionReport(
+    getMcqSectionReport,
     report?.assessment_instance_id,
     section?.section_id,
+    'Failed to load MCQ results.',
   );
 
   const questions = useMemo(() => {
@@ -96,15 +99,7 @@ export function McqSectionPanel({ section, report }) {
     );
   }
 
-  if (error) {
-    return (
-      <PanelBlock>
-        <div className="rounded-[10px] border border-error-border bg-error-bg px-[12px] py-[9px]">
-          <p className="text-[12px] leading-[17px] text-error">{error}</p>
-        </div>
-      </PanelBlock>
-    );
-  }
+  if (error) return <PanelError>{error}</PanelError>;
 
   if (!data) return null;
 

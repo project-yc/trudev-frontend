@@ -1,15 +1,13 @@
 import { IconWriting } from '@tabler/icons-react';
 import { useAssessmentBuilder } from '../../context/AssessmentBuilderContext';
+import { useSectionItemEditor } from '../../context/useSectionItemEditor';
 import { QuestionFooter } from '../QuestionFooter';
 import { SectionConfigCard } from '../SectionConfigCard';
 
 export function FreeTextEditor({ sectionId, item, allItems, itemIndex }) {
   const { dispatch, ACTIONS, state } = useAssessmentBuilder();
+  const { updateItem } = useSectionItemEditor(sectionId, item.id);
   const section = state.sections.find(s => s.id === sectionId);
-
-  const updateItem = (updates) => {
-    dispatch({ type: ACTIONS.UPDATE_QUESTION, payload: { sectionId, questionId: item.id, updates } });
-  };
 
   return (
     <div className="max-w-[540px] mx-auto px-5 py-5 space-y-3">

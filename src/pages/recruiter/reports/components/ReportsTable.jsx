@@ -8,6 +8,7 @@ import {
 } from '../../../../components/ui/table';
 import { REPORT_COLUMNS } from '../constants/reportsConfig';
 import { formatDate, formatScore, getRowKey } from '../utils/reportRows';
+import { RankPill, ScoreWithAiLevel, UnrankedGroupLabel } from './RankPill';
 import { IdentityCell } from './IdentityCell';
 import { ReportStatusCell } from './ReportStatusCell';
 import { RowActions } from './RowActions';
@@ -26,6 +27,10 @@ export function ReportsTable({
   assessmentName,
   onViewReport,
   pageSize,
+  // Global index of the first unranked row in the ordered list (-1 when every
+  // row is rank-eligible) and how many rows sit in that bucket.
+  unrankedStart = -1,
+  unrankedCount = 0,
 }) {
   const isEmpty = !loading && rows.length === 0;
 
@@ -33,7 +38,7 @@ export function ReportsTable({
     <div className="overflow-hidden">
       <Table className="min-w-[920px] table-fixed">
         <caption className="sr-only">
-          Candidate assessment reports, ranked by overall score
+          Candidate assessment reports, ordered by overall signal; unranked candidates listed last
         </caption>
         <colgroup>
           {REPORT_COLUMNS.map(column => (
@@ -65,12 +70,27 @@ export function ReportsTable({
               </TableCell>
             </TableRow>
           ) : (
-            rows.map((row, index) => (
-              <TableRow key={getRowKey(row, offset + index)} className="border-t border-border-subtle">
-                {/* Server-side rank across the whole assessment — not the
-                    position within the current page or search result. */}
+            rows.map((row, index) => {
+              // The divider sits at the first unranked row of the whole
+              // ordered list, whichever page that lands on.
+              const opensUnrankedBucket = offset + index === unrankedStart;
+              return [
+                opensUnrankedBucket && (
+                  <TableRow key={`${getRowKey(row, offset + index)}-group`} className="border-t border-border-default bg-surface-muted hover:bg-surface-muted">
+                    <TableCell colSpan={REPORT_COLUMNS.length} className="h-auto p-0">
+                      <UnrankedGroupLabel count={unrankedCount} />
+                    </TableCell>
+                  </TableRow>
+                ),
+              <TableRow
+                key={getRowKey(row, offset + index)}
+                className={row.rankEligible ? 'border-t border-border-subtle' : 'border-t border-border-subtle bg-surface-hover/60'}
+              >
+                {/* Client-side rank among rank-eligible candidates across the
+                    whole assessment — not the position within the page. The
+                    server's `rank` also numbers non-comparable rows. */}
                 <TableCell className="px-[12px] font-medium">
-                  {row.rank ?? offset + index + 1}
+                  <RankPill rank={row.rankPosition} rankEligible={row.rankEligible} reviewStatus={row.reviewStatus} />
                 </TableCell>
 
                 <TableCell className="px-[12px]">
@@ -88,7 +108,13 @@ export function ReportsTable({
                 </TableCell>
 
                 <TableCell className="px-[12px] font-medium">
-                  {formatScore(row.score)}
+                  <ScoreWithAiLevel
+                    score={row.score}
+                    aiAccessLevel={row.aiAccessLevel}
+                    reviewStatus={row.reviewStatus}
+                    rankEligible={row.rankEligible}
+                    format={formatScore}
+                  />
                 </TableCell>
 
                 <TableCell className="px-[12px]">
@@ -98,8 +124,9 @@ export function ReportsTable({
                 <TableCell className="px-[12px]">
                   <RowActions />
                 </TableCell>
-              </TableRow>
-            ))
+              </TableRow>,
+              ];
+            })
           )}
         </TableBody>
       </Table>

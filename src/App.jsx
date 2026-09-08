@@ -22,7 +22,6 @@ import CandidateSectionRuntimePage from './pages/candidate/CandidateSectionRunti
 import AssessmentLandingPage from './pages/candidate/AssessmentLandingPage'
 import AssessmentTermsPage from './pages/candidate/AssessmentTermsPage'
 import McqSectionPage from './pages/candidate/McqSectionPage'
-import ExamPreview from './pages/candidate/__ExamPreview'
 import OnboardingPage from './pages/recruiter/onboarding/OnboardingPage'
 import AssessmentBuilderPage from './pages/recruiter/assessments/new/AssessmentBuilderPage'
 import AdminDashboard from './pages/admin/AdminDashboard'
@@ -39,6 +38,13 @@ const TaskCodeViewPage = lazy(() => import('./pages/recruiter/TaskCodeViewPage')
 // Public product page for the AI Adaptive Interview. Code-split: it is
 // marketing-weight and never loads for someone who stays inside the app.
 const AdaptiveInterviewLanding = lazy(() => import('./pages/public/adaptive-interview'))
+// Dev-only preview harness. Lazy AND gated on DEV so the module (and the
+// fixtures it drags in) never enters the production bundle; a static import
+// would have kept it there even though its route was already guarded.
+const ExamPreview = import.meta.env.DEV
+  ? lazy(() => import('./pages/candidate/__ExamPreview'))
+  : null
+import { CANDIDATE_ROUTES } from './routes/candidateRoutes'
 import UserDashboardPage from './users/pages/UserDashboardPage'
 import UserSimulationsPage from './users/pages/UserSimulationsPage'
 import UserSimulationDetailPage from './users/pages/UserSimulationDetailPage'
@@ -370,15 +376,22 @@ function App() {
             </ProtectedRoute>
           } 
         />
-        <Route path="/invite/:token" element={<InviteRedirect />} />
-        <Route path="/candidate/assessment/:instanceId/sections/:sectionId" element={<CandidateSectionRuntimePage />} />
-        <Route path="/candidate/assessment/:instanceId/complete" element={<CandidateAssessmentCompletePage />} />
-        <Route path="/assessment/:token" element={<AssessmentLandingPage />} />
-        <Route path="/assessment/:token/terms" element={<AssessmentTermsPage />} />
-        <Route path="/assessment/:token/mcq/:sectionIndex" element={<McqSectionPage />} />
+        <Route path={CANDIDATE_ROUTES.invite} element={<InviteRedirect />} />
+        <Route path={CANDIDATE_ROUTES.section} element={<CandidateSectionRuntimePage />} />
+        <Route path={CANDIDATE_ROUTES.complete} element={<CandidateAssessmentCompletePage />} />
+        <Route path={CANDIDATE_ROUTES.landing} element={<AssessmentLandingPage />} />
+        <Route path={CANDIDATE_ROUTES.terms} element={<AssessmentTermsPage />} />
+        <Route path={CANDIDATE_ROUTES.mcqSection} element={<McqSectionPage />} />
         {/* Dev-only preview harness — must not ship as a public route. */}
-        {import.meta.env.DEV && (
-          <Route path="/__exam-preview" element={<ExamPreview />} />
+        {ExamPreview && (
+          <Route
+            path="/__exam-preview"
+            element={(
+              <Suspense fallback={<div className="min-h-screen bg-page" />}>
+                <ExamPreview />
+              </Suspense>
+            )}
+          />
         )}
         {/* Guarded: this creates the org and flips is_onboarded, so it must not
             be reachable anonymously. */}

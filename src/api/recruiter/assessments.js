@@ -74,3 +74,14 @@ export async function listAssessmentsPage({
     summary: { ...EMPTY_SUMMARY, ...(data.summary || {}) },
   };
 }
+
+/**
+ * Close a live assessment: no new invites, pending invites revoked, candidates
+ * already sitting it finish normally. Only a published assessment can be
+ * closed; the server answers 400 otherwise.
+ *
+ * Endpoint: POST /api/v1/assessment/:id/close
+ */
+export async function closeAssessment(id) {
+  return authAxios.post(`/api/v1/assessment/${id}/close`);
+}

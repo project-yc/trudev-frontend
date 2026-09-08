@@ -91,8 +91,10 @@ export const RECRUITER_PALETTE = {
   // ── Text ──────────────────────────────────────────────────────────────────
   textPrimary:   '#0F172A', // Slate 900
   textSecondary: '#64748B', // Slate 500
-  textMuted:     '#94A3B8', // Slate 400
-  textFaint:     '#CBD5E1', // Slate 300
+  // Slate 400 (#94A3B8) is 2.9:1 on white — below WCAG AA for body copy.
+  // Muted is body-sized text, so it uses Slate 500; faint is decorative only.
+  textMuted:     '#64748B', // Slate 500
+  textFaint:     '#94A3B8', // Slate 400
 
   // ── Brand accent (DEFAULT — overridden per-org) ───────────────────────────
   // The product default brand is Ember Orange. Derived shades are computed at
@@ -154,8 +156,8 @@ export const CANDIDATE_PALETTE = {
   // ── Text (warm neutrals, never blue-white) ────────────────────────────────
   textPrimary:   '#FBF6F3',
   textSecondary: '#B5ABA4',
-  textMuted:     '#8A7E77',
-  textFaint:     '#6B615B',
+  textMuted:     '#A69B93',
+  textFaint:     '#8A7E77',
 
   // ── Brand — Ember Orange ──────────────────────────────────────────────────
   // Tints sit ABOVE the card surface so a selected row reads as lit, not as a

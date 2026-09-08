@@ -2,9 +2,10 @@ import { AlertTriangle, Check, Minus, X } from 'lucide-react';
 import { cn } from '../../../../../lib/utils';
 import { Badge } from '../../../../../components/ui/badge';
 import { Skeleton } from '../../../../../components/ui/skeleton';
-import { PanelBlock } from '../SectionPanel';
+import { PanelBlock, PanelError } from '../SectionPanel';
 import { ScoreGauge } from '../ScoreGauge';
-import { useFreeTextSectionReport } from '../../hooks/useFreeTextSectionReport';
+import { useSectionReport } from '../../hooks/useSectionReport';
+import { getFreeTextSectionReport } from '../../../../../api/recruiter/reports';
 
 const STATE_BADGES = {
   graded: null,
@@ -126,9 +127,11 @@ function QuestionBlock({ question }) {
 }
 
 export function FreeTextSectionPanel({ section, report }) {
-  const { data, loading, error } = useFreeTextSectionReport(
+  const { data, loading, error } = useSectionReport(
+    getFreeTextSectionReport,
     report?.assessment_instance_id,
     section?.section_id,
+    'Failed to load answers.',
   );
 
   if (loading) {
@@ -140,15 +143,7 @@ export function FreeTextSectionPanel({ section, report }) {
     );
   }
 
-  if (error) {
-    return (
-      <PanelBlock>
-        <div className="rounded-[10px] border border-error-border bg-error-bg px-[12px] py-[9px]">
-          <p className="text-[12px] leading-[17px] text-error">{error}</p>
-        </div>
-      </PanelBlock>
-    );
-  }
+  if (error) return <PanelError>{error}</PanelError>;
 
   if (!data) return null;
 

@@ -12,7 +12,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { AskAnythingBar } from '../../components/recruiter/AskAnythingBar.jsx';
 import { MetricCard } from './reports/components/MetricCard';
 import { getAllAssessments, getCandidatesWithReports } from '../../api/recruiter/assessment.jsx';
-import { normalizeList, extractCandidates } from './reports/utils/reportRows';
+import { normalizeList, extractCandidates, orderByRankEligibility } from './reports/utils/reportRows';
+import { getRankEligibility } from '../../api/recruiter/reports';
+import { ComparabilityCaption, RankPill, ScoreWithAiLevel, UnrankedGroupLabel } from './reports/components/RankPill';
 
 const POLL_INTERVAL_MS = 8000;
 
@@ -55,32 +57,6 @@ const SIGNAL_COLORS = { green: '#16A34A', yellow: '#D97706', red: '#DC2626', nul
 
 function SignalDot({ signal }) {
   return <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: SIGNAL_COLORS[signal] || SIGNAL_COLORS.null }} />;
-}
-
-function ScorePill({ score }) {
-  if (score === null || score === undefined) return <span className="text-[11px] text-text-muted">—</span>;
-  const color = score >= 75 ? '#16A34A' : score >= 50 ? '#D97706' : '#DC2626';
-  const bg    = score >= 75 ? '#F0FDF4' : score >= 50 ? '#FFFBEB' : '#FEF2F2';
-  const border= score >= 75 ? '#86EFAC' : score >= 50 ? '#FCD34D' : '#FCA5A5';
-  return (
-    <span className="inline-flex items-center gap-1 text-[12px] font-bold px-2.5 py-1 rounded-lg"
-      style={{ color, backgroundColor: bg, border: `1px solid ${border}` }}>
-      {score}<span className="text-[10px] font-normal opacity-70">/100</span>
-    </span>
-  );
-}
-
-function RankBadge({ rank }) {
-  if (!rank) return null;
-  const styles = rank === 1 ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
-               : rank === 2 ? 'bg-zinc-400/10 text-zinc-300 border-zinc-400/30'
-               : rank === 3 ? 'bg-orange-700/10 text-orange-400 border-orange-700/30'
-               : 'bg-surface text-text-secondary border-border-default';
-  return (
-    <span className={`inline-flex items-center justify-center w-7 h-7 rounded-lg text-[11px] font-bold border ${styles}`}>
-      #{rank}
-    </span>
-  );
 }
 
 /** Matches the empty-state layout shared by assessments and reports tables. */
@@ -167,8 +143,20 @@ export default function CandidatesScreen() {
     else { setSortBy(col); setSortDir('asc'); }
   };
 
-  const filtered = useMemo(() => {
-    let list = candidates.filter(c => {
+  // Rank-eligible candidates get a stable position by score; everyone else
+  // (needs review, insufficient evidence, not graded, failed, not started)
+  // goes to the unranked bucket. Positions are assigned here, before any
+  // filtering or user sort, so #3 stays #3 whatever the view.
+  const ranked = useMemo(
+    () => orderByRankEligibility(
+      candidates.map(c => ({ ...c, eligibility: getRankEligibility(c) })),
+      row => row.eligibility,
+    ),
+    [candidates],
+  );
+
+  const { filtered, unrankedStart, unrankedCount } = useMemo(() => {
+    const list = ranked.filter(c => {
       const matchSearch = !search ||
         c.candidate_name?.toLowerCase().includes(search.toLowerCase()) ||
         c.candidate_email?.toLowerCase().includes(search.toLowerCase());
@@ -176,24 +164,28 @@ export default function CandidatesScreen() {
       return matchSearch && matchStatus;
     });
 
-    list = [...list].sort((a, b) => {
+    const compare = (a, b) => {
       let va, vb;
-      if (sortBy === 'rank')    { va = a.rank ?? 9999; vb = b.rank ?? 9999; }
-      else if (sortBy === 'score') { va = a.overall_score ?? -1; vb = b.overall_score ?? -1; }
+      if (sortBy === 'rank')    { va = a.rankPosition ?? 9999; vb = b.rankPosition ?? 9999; }
+      else if (sortBy === 'score') { va = a.eligibility.score ?? -1; vb = b.eligibility.score ?? -1; }
       else if (sortBy === 'name')  { va = (a.candidate_name || '').toLowerCase(); vb = (b.candidate_name || '').toLowerCase(); }
       else { va = a.invited_at || ''; vb = b.invited_at || ''; }
       return sortDir === 'asc' ? (va < vb ? -1 : va > vb ? 1 : 0) : (va > vb ? -1 : va < vb ? 1 : 0);
-    });
+    };
 
-    return list;
-  }, [candidates, search, statusFilter, sortBy, sortDir]);
+    // The user's sort applies within each group; the unranked bucket always
+    // stays below the ranked candidates.
+    const eligible = list.filter(c => c.eligibility.rankEligible).sort(compare);
+    const unranked = list.filter(c => !c.eligibility.rankEligible).sort(compare);
 
-  const total     = candidates.length;
-  const submitted = candidates.filter(c => c.status === 'Submitted').length;
-  const scored    = candidates.filter(c => c.overall_score !== null).length;
-  const avgScore  = scored > 0
-    ? Math.round(candidates.filter(c => c.overall_score !== null).reduce((s, c) => s + c.overall_score, 0) / scored)
-    : null;
+    return {
+      filtered: [...eligible, ...unranked],
+      unrankedStart: unranked.length ? eligible.length : -1,
+      unrankedCount: unranked.length,
+    };
+  }, [ranked, search, statusFilter, sortBy, sortDir]);
+
+  const total = candidates.length;
 
   const SortIcon = ({ col }) => {
     if (sortBy !== col) return <ChevronUp className="w-3 h-3 opacity-20" />;
@@ -215,7 +207,7 @@ export default function CandidatesScreen() {
               <div className="min-w-0">
                 <h1 className="text-[20px] font-bold leading-[24px] text-text-primary">Candidates</h1>
                 <p className="mt-[5px] text-[15px] leading-[17px] text-text-secondary">
-                  Ranked candidates with performance scores for each assessment.
+                  Candidates by overall signal for each assessment — evidence, not a verdict.
                 </p>
               </div>
 
@@ -269,14 +261,16 @@ export default function CandidatesScreen() {
               </div>
             </div>
 
+            <ComparabilityCaption className="mt-[17px]" />
+
             {/* Table */}
-            <div className="mt-[17px] overflow-hidden rounded-[10px] border border-border-subtle bg-surface">
+            <div className="mt-[8px] overflow-hidden rounded-[10px] border border-border-subtle bg-surface">
               <div className="overflow-x-auto">
                 <Table className="min-w-[920px] table-fixed">
-                  <caption className="sr-only">Ranked candidates with performance scores</caption>
+                  <caption className="sr-only">Candidates by overall signal; unranked candidates listed last</caption>
                   <TableHeader>
                     <TableRow className="bg-surface-hover hover:bg-surface-hover">
-                      <TableHead className="w-[56px] px-[12px]">#</TableHead>
+                      <TableHead className="w-[96px] px-[12px]">#</TableHead>
                       <TableHead className="px-[12px]">
                         <button onClick={() => toggle('name')} className="flex items-center gap-1 hover:text-text-primary">
                           Candidate<SortIcon col="name" />
@@ -315,9 +309,19 @@ export default function CandidatesScreen() {
                       filtered.map((c, idx) => {
                         const dims = c.dimensions;
                         const hasReport = c.report_status === 'completed' && c.session_id;
-                        return (
-                          <TableRow key={c.id} className="border-t border-border-subtle">
-                            <TableCell className="px-[12px]"><RankBadge rank={c.rank} /></TableCell>
+                        const { rankEligible, reviewStatus, score, aiAccessLevel } = c.eligibility;
+                        return [
+                          idx === unrankedStart && (
+                            <TableRow key={`${c.id}-group`} className="border-t border-border-default bg-surface-muted hover:bg-surface-muted">
+                              <TableCell colSpan={7} className="h-auto p-0">
+                                <UnrankedGroupLabel count={unrankedCount} />
+                              </TableCell>
+                            </TableRow>
+                          ),
+                          <TableRow key={c.id} className={rankEligible ? 'border-t border-border-subtle' : 'border-t border-border-subtle bg-surface-hover/60'}>
+                            <TableCell className="px-[12px]">
+                              <RankPill rank={c.rankPosition} rankEligible={rankEligible} reviewStatus={reviewStatus} />
+                            </TableCell>
 
                             <TableCell className="px-[12px]">
                               <div className="flex items-center gap-3 min-w-0">
@@ -335,7 +339,14 @@ export default function CandidatesScreen() {
 
                             <TableCell className="px-[12px]"><StatusBadge status={c.status} /></TableCell>
 
-                            <TableCell className="px-[12px]"><ScorePill score={c.overall_score} /></TableCell>
+                            <TableCell className="px-[12px]">
+                              <ScoreWithAiLevel
+                                score={score}
+                                aiAccessLevel={aiAccessLevel}
+                                reviewStatus={reviewStatus}
+                                rankEligible={rankEligible}
+                              />
+                            </TableCell>
 
                             <TableCell className="px-[12px]">
                               {dims ? (
@@ -363,12 +374,12 @@ export default function CandidatesScreen() {
                                 {hasReport ? (
                                   <button
                                     onClick={() => navigate(`/recruiter/reports/${selectedId}/${c.session_id}`)}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-tint border border-brand-border text-brand text-[11px] font-semibold rounded-lg hover:bg-brand-tint-light hover:border-brand transition-all"
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-tint border border-brand-border text-brand-deep text-[11px] font-semibold rounded-lg hover:bg-brand-tint-light hover:border-brand transition-all"
                                   >
                                     <FileText className="w-3 h-3" />View
                                   </button>
                                 ) : c.report_status === 'processing' ? (
-                                  <span className="flex items-center gap-1 text-[11px] text-brand"><Loader className="w-3 h-3 animate-spin" />Generating…</span>
+                                  <span className="flex items-center gap-1 text-[11px] text-brand-deep"><Loader className="w-3 h-3 animate-spin" />Generating…</span>
                                 ) : c.report_status === 'pending' ? (
                                   <span className="flex items-center gap-1 text-[11px] text-warning"><Clock className="w-3 h-3" />Queued</span>
                                 ) : c.report_status === 'failed' ? (
@@ -378,8 +389,8 @@ export default function CandidatesScreen() {
                                 )}
                               </div>
                             </TableCell>
-                          </TableRow>
-                        );
+                          </TableRow>,
+                        ];
                       })
                     )}
                   </TableBody>
@@ -388,7 +399,10 @@ export default function CandidatesScreen() {
 
               {!loading && filtered.length > 0 && (
                 <div className="px-[12px] py-3 bg-surface-hover border-t border-border-subtle">
-                  <p className="text-[11px] text-text-muted">{filtered.length} of {total} candidate{total !== 1 ? 's' : ''} · Ranked by overall score</p>
+                  <p className="text-[11px] text-text-muted">
+                    {filtered.length} of {total} candidate{total !== 1 ? 's' : ''} · Ordered by overall signal
+                    {unrankedCount > 0 ? ` · ${unrankedCount} unranked` : ''}
+                  </p>
                 </div>
               )}
             </div>

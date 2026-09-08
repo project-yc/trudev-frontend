@@ -119,6 +119,78 @@ function deriveReportState(row) {
 }
 
 /**
+ * Review outcome for one candidate row, mirroring the backend `review_status`
+ * enum. `clear` is the only value that makes a score comparable; every other
+ * value puts the candidate in the unranked bucket.
+ */
+export const REVIEW_STATUS = {
+  CLEAR: 'clear',
+  INSUFFICIENT_EVIDENCE: 'insufficient_evidence',
+  REQUIRES_HUMAN_REVIEW: 'requires_human_review',
+  PENDING: 'pending',
+  FAILED: 'failed',
+  NOT_STARTED: 'not_started',
+};
+
+export const REVIEW_STATUS_LABELS = {
+  [REVIEW_STATUS.CLEAR]: 'Clear',
+  [REVIEW_STATUS.INSUFFICIENT_EVIDENCE]: 'Insufficient evidence',
+  [REVIEW_STATUS.REQUIRES_HUMAN_REVIEW]: 'Needs review',
+  [REVIEW_STATUS.PENDING]: 'Not graded yet',
+  [REVIEW_STATUS.FAILED]: 'Grading failed',
+  [REVIEW_STATUS.NOT_STARTED]: 'Not started',
+};
+
+export function reviewStatusLabel(status) {
+  if (!status) return 'Unranked';
+  return REVIEW_STATUS_LABELS[status] || String(status).replace(/_/g, ' ');
+}
+
+/** Statuses for which no number may be shown at all (nothing was earned yet). */
+export function isUngradedReviewStatus(status) {
+  return status === REVIEW_STATUS.PENDING
+    || status === REVIEW_STATUS.FAILED
+    || status === REVIEW_STATUS.NOT_STARTED;
+}
+
+// `Number(null)` is 0, so a bare `Number.isFinite(Number(value))` turned an
+// unscored row into a real zero. Absent means absent.
+function toScore(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+/**
+ * Rank eligibility for one *raw* server row.
+ *
+ * The backend emits `rank_eligible`, `review_status` and `ai_access_level` per
+ * row. Rows from an older backend carry none of them; for those a candidate is
+ * treated as eligible only when the report is finalized AND a finite score
+ * exists — a pending AssessmentReport already carries a (partial) percentage,
+ * and ranking on it would present in-progress work as an earned number.
+ */
+export function getRankEligibility(row = {}) {
+  const score = toScore(row.overall_score);
+  const state = deriveReportState(row);
+  const aiAccessLevel = row.ai_access_level || null;
+
+  let reviewStatus = row.review_status || null;
+  if (!reviewStatus) {
+    if (state === REPORT_STATE.FAILED) reviewStatus = REVIEW_STATUS.FAILED;
+    else if (state === REPORT_STATE.READY && score !== null) reviewStatus = REVIEW_STATUS.CLEAR;
+    else if (!row.status || row.status === 'Invited' || row.status === 'Expired') reviewStatus = REVIEW_STATUS.NOT_STARTED;
+    else reviewStatus = REVIEW_STATUS.PENDING;
+  }
+
+  const rankEligible = typeof row.rank_eligible === 'boolean'
+    ? row.rank_eligible && score !== null
+    : reviewStatus === REVIEW_STATUS.CLEAR && score !== null;
+
+  return { score, state, reviewStatus, rankEligible, aiAccessLevel };
+}
+
+/**
  * Maps one server row to the stable shape the screen renders, following the
  * `normalizeCandidateRuntimeState` convention in api/candidate/runtime.js.
  *
@@ -126,10 +198,14 @@ function deriveReportState(row) {
  * means backend drift shows up in one place.
  */
 export function normalizeReportRow(row = {}) {
+  const eligibility = getRankEligibility(row);
   return {
     id: row.id || null,
     assessmentInstanceId: row.id || null,
     sessionId: row.session_id || null,
+    // Server rank is advisory only: it is assigned to every scored row, which
+    // includes candidates whose score is not comparable. The screens re-rank
+    // eligible rows client-side (see reportRows.orderByRankEligibility).
     rank: row.rank ?? null,
     name: row.candidate_name || '',
     email: row.candidate_email || '',
@@ -137,8 +213,11 @@ export function normalizeReportRow(row = {}) {
     assessmentName: row.assessment_name || null,
     instanceStatus: row.status || null,
     stage: (row.stage || '').toLowerCase(),
-    state: deriveReportState(row),
-    score: Number.isFinite(Number(row.overall_score)) ? Number(row.overall_score) : null,
+    state: eligibility.state,
+    score: eligibility.score,
+    rankEligible: eligibility.rankEligible,
+    reviewStatus: eligibility.reviewStatus,
+    aiAccessLevel: eligibility.aiAccessLevel,
     submittedAt:
       row.submitted_at ||
       row.completed_at ||

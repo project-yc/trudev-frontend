@@ -11,6 +11,7 @@ import { ReportsFilterBar } from './components/ReportsFilterBar';
 import { ReportsStatStrip } from './components/ReportsStatStrip';
 import { ReportsTable } from './components/ReportsTable';
 import { ReportsPagination } from './components/ReportsPagination';
+import { ComparabilityCaption } from './components/RankPill';
 
 export default function ReportsPage() {
   const navigate = useNavigate();
@@ -31,6 +32,8 @@ export default function ReportsPage() {
     search,
     setSearch,
     totalCount,
+    unrankedStart,
+    unrankedCount,
     offset,
     page,
     setPage,
@@ -90,9 +93,11 @@ export default function ReportsPage() {
               <ReportsStatStrip metrics={metrics} loading={isLoading} />
             </div>
 
+            <ComparabilityCaption className="mt-[17px]" />
+
             {/* Figma keeps the pagination strip inside the table's bordered
                 container, not floating below it. */}
-            <div className="mt-[17px] overflow-hidden rounded-[10px] border border-border-subtle bg-surface">
+            <div className="mt-[8px] overflow-hidden rounded-[10px] border border-border-subtle bg-surface">
               <ReportsTable
                 rows={rows}
                 loading={isLoading}
@@ -101,6 +106,8 @@ export default function ReportsPage() {
                 pageSize={pageSize}
                 assessmentName={assessmentName}
                 onViewReport={handleViewReport}
+                unrankedStart={unrankedStart}
+                unrankedCount={unrankedCount}
               />
 
               {!isLoading && totalCount > 0 && (

@@ -1,13 +1,16 @@
 import userApi from './api';
+import { unwrapData } from './unwrap';
 
+// These views answer with Django's ApiResponse envelope; `userApi` (authAxios)
+// has already stripped the HTTP layer, so exactly one unwrap remains.
 export const getUserDashboard = async () => {
   const response = await userApi.get('/api/v1/user/dashboard');
-  return response.data?.data;
+  return unwrapData(response);
 };
 
 export const getUserSessions = async () => {
   const response = await userApi.get('/api/v1/user/sessions');
-  return response.data?.data || [];
+  return unwrapData(response) || [];
 };
 
 export const getUserSimulations = async (query = {}) => {
@@ -15,24 +18,24 @@ export const getUserSimulations = async (query = {}) => {
     params: query,
   });
 
-  return response.data?.data;
+  return unwrapData(response);
 };
 
 export const getUserSimulationById = async (assessmentId) => {
   const response = await userApi.get(`/api/v1/user/simulations/${assessmentId}`);
-  return response.data?.data;
+  return unwrapData(response);
 };
 
 export const getPublicAssessmentTasks = async (assessmentId) => {
   const response = await userApi.get(`/api/v1/public/assessments/${assessmentId}/tasks`);
-  return response.data?.data || [];
+  return unwrapData(response) || [];
 };
 
 export const startUserSimulation = async (assessmentId, taskId) => {
   const response = await userApi.post(
     `/api/v1/public/assessments/${assessmentId}/tasks/${taskId}/start`,
   );
-  return response.data;
+  return unwrapData(response);
 };
 
 export const launchUserSimulation = async (assessmentId) => {

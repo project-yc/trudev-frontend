@@ -16,7 +16,6 @@ import {
   ADAPTIVE_PRESET_OPTIONS,
   CODING_ANCHORED_PRESETS,
   ADAPTIVE_TIMER_OPTIONS,
-  AI_LEVEL_OPTIONS,
   CODING_RUBRIC_DIMENSIONS,
   DIFFICULTY_ANY,
   DIFFICULTY_OPTIONS,
@@ -34,6 +33,7 @@ import {
   formatFocusAreaLabel,
   focusAreasNeededFor,
 } from './constants';
+import { AI_LEVEL_OPTIONS } from '../../../../../../constants/aiLevels';
 import { Sheet, SheetContent } from '../../../../../../components/ui/sheet';
 import { Input } from '../../../../../../components/ui/input';
 import { Textarea } from '../../../../../../components/ui/textarea';
@@ -167,6 +167,23 @@ function QuestionIntro({ contentType = 'mcq' }) {
         {INTRO_COPY[contentType] || INTRO_COPY.mcq}
       </p>
     </div>
+  );
+}
+
+/** The "Ask your question" prompt input shared by the MCQ and free-text steps. */
+function QuestionPromptField({ value, onChange }) {
+  return (
+    <>
+      <label className="mt-[24px] block text-[15px] font-semibold leading-none text-text-primary">
+        Ask your question
+      </label>
+      <Input
+        value={value}
+        onChange={event => onChange(event.target.value)}
+        className="mt-[10px] h-[42px] rounded-[8px] border-border-default text-[15px] font-medium"
+        placeholder="Type your question"
+      />
+    </>
   );
 }
 
@@ -307,22 +324,11 @@ function SectionDetailsStep({ drawerType, form, onCancel, onContinue, isEditing 
         )}
       </div>
 
-      <div className="flex flex-shrink-0 justify-end gap-[10px] px-[28px] pb-[28px] pt-[10px]">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="h-[42px] min-w-[96px] rounded-[8px] border border-border-default bg-surface px-[24px] text-[15px] font-medium text-text-primary shadow-card transition-colors hover:bg-surface-hover"
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          onClick={onContinue}
-          className="h-[42px] min-w-[112px] rounded-[8px] bg-[var(--color-assessment-cta)] px-[26px] text-[15px] font-bold text-[var(--color-assessment-cta-text)] shadow-card transition-colors hover:bg-[var(--color-assessment-cta-hover)]"
-        >
-          {isEditing ? 'Save changes' : 'Continue'}
-        </button>
-      </div>
+      <DrawerFooter
+        onCancel={onCancel}
+        onSubmit={onContinue}
+        submitLabel={isEditing ? 'Save changes' : 'Continue'}
+      />
     </>
   );
 }
@@ -581,15 +587,7 @@ function FreeTextQuestionForm({ form, onCancel, onSubmit, submitLabel = 'Add' })
         <QuestionModeTabs value={form.questionMode} onChange={form.setQuestionMode} />
         <QuestionIntro contentType="free_text" />
 
-        <label className="mt-[24px] block text-[15px] font-semibold leading-none text-text-primary">
-          Ask your question
-        </label>
-        <Input
-          value={form.questionPrompt}
-          onChange={event => form.setQuestionPrompt(event.target.value)}
-          className="mt-[10px] h-[42px] rounded-[8px] border-border-default text-[15px] font-medium"
-          placeholder="Type your question"
-        />
+        <QuestionPromptField value={form.questionPrompt} onChange={form.setQuestionPrompt} />
 
         <label className="mt-[20px] block text-[15px] font-semibold leading-none text-text-primary">
           Model answer
@@ -770,15 +768,7 @@ function McqQuestionForm({ form, onCancel, onSubmit, submitLabel = 'Add' }) {
         <QuestionModeTabs value={form.questionMode} onChange={form.setQuestionMode} />
         <QuestionIntro contentType="mcq" />
 
-        <label className="mt-[24px] block text-[15px] font-semibold leading-none text-text-primary">
-          Ask your question
-        </label>
-        <Input
-          value={form.questionPrompt}
-          onChange={event => form.setQuestionPrompt(event.target.value)}
-          className="mt-[10px] h-[42px] rounded-[8px] border-border-default text-[15px] font-medium"
-          placeholder="Type your question"
-        />
+        <QuestionPromptField value={form.questionPrompt} onChange={form.setQuestionPrompt} />
 
         <div className="mt-[20px] grid grid-cols-2 gap-[22px]">
           <div>

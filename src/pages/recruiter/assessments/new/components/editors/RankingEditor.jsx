@@ -7,6 +7,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useAssessmentBuilder } from '../../context/AssessmentBuilderContext';
+import { useSectionItemEditor } from '../../context/useSectionItemEditor';
 import { QuestionFooter } from '../QuestionFooter';
 import { SectionConfigCard } from '../SectionConfigCard';
 
@@ -48,13 +49,10 @@ function SortableRankItem({ rankItem, onTextChange, onDelete }) {
 
 export function RankingEditor({ sectionId, item, allItems, itemIndex }) {
   const { dispatch, ACTIONS, state } = useAssessmentBuilder();
+  const { updateItem } = useSectionItemEditor(sectionId, item.id);
   const section = state.sections.find(s => s.id === sectionId);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
-
-  const updateItem = (updates) => {
-    dispatch({ type: ACTIONS.UPDATE_QUESTION, payload: { sectionId, questionId: item.id, updates } });
-  };
 
   const handleRankItemText = (rankItemId, text) => {
     const updated = item.items.map(ri => ri.id === rankItemId ? { ...ri, text } : ri);

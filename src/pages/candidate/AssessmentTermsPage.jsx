@@ -11,7 +11,7 @@ import {
 import { handleAssessmentStartResponse } from './assessmentStartNavigation'
 
 const RULES = [
-  'The clock starts as soon as you press "Start" on a section — sections cannot be paused once begun.',
+  'The clock starts as soon as you press "Start" on a section. In the coding IDE you may pause with the Pause button; other sections cannot be paused.',
   'Answers save automatically as you go, but nothing is submitted until you confirm.',
   'This assessment may include a monitored or AI-assisted interview section — stay on the assessment tab and avoid switching windows during timed sections.',
   'Do not share your invite link or assessment content with anyone else.',

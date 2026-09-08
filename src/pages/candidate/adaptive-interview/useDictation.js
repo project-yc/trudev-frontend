@@ -22,7 +22,7 @@ const getRecognitionCtor = () => (
     : window.SpeechRecognition || window.webkitSpeechRecognition || null
 )
 
-export const dictationSupported = () => Boolean(getRecognitionCtor())
+const dictationSupported = () => Boolean(getRecognitionCtor())
 
 /**
  * @param onCommit called with each finalized phrase, to append to the composer.

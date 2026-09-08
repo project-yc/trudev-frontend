@@ -10,14 +10,16 @@ import {
 } from '../../../../../../hooks/useLibraryFork';
 import { buildLibraryTypeData } from '../../../../../../lib/libraryTypeData.js';
 import { SHEET_EXIT_DURATION_MS } from '../../../../../../components/ui/sheet';
-import { SECTION_TYPE_CONFIG } from '../../constants/sectionTypeConfig';
 import {
   ADAPTIVE_DEFAULT_TIMER,
+  DEFAULT_CODING_SECTION_TIMER,
+  DEFAULT_SECTION_TIMER,
+  SECTION_TYPE_CONFIG,
+} from '../../constants/sectionTypeConfig';
+import {
   ADAPTIVE_PRESET_OPTIONS,
   CODING_ANCHORED_PRESETS,
   CODING_RUBRIC_DIMENSIONS,
-  DEFAULT_CODING_SECTION_TIMER,
-  DEFAULT_SECTION_TIMER,
   DIFFICULTY_ANY,
   ROLE_FOCUS_AREAS,
   adaptiveSeniorityBlock,
@@ -670,8 +672,14 @@ export function useSectionCreationDrawer({ dispatch, ACTIONS, state }) {
     }
   };
 
-  /** Commit a question into the section, either as a new section or an added item. */
-  const commitQuestion = (question, fallbackSectionName) => {
+  /**
+   * Commit a question into the section, either as a new section or an added item.
+   *
+   * `aiLevelOverride` is the section-level AI access written on ADD_SECTION;
+   * only the coding drawer sets it (the AI level is per-section for a coding
+   * task and null for every other type).
+   */
+  const commitQuestion = (question, fallbackSectionName, { aiLevelOverride = null } = {}) => {
     if (editingQuestionId && targetSectionId) {
       // Replace the stored config in place. Editing must NOT go through
       // ADD_QUESTION: a section may hold only one adaptive interview (the server
@@ -679,12 +687,19 @@ export function useSectionCreationDrawer({ dispatch, ACTIONS, state }) {
       // saved. `UPDATE_QUESTION` merges, so `backendItemId` and `published`
       // survive and the save updates the existing SectionItem rather than
       // orphaning it.
+      // Merge the freshly built question over the stored one, keeping the
+      // identity fields the reducer must not lose. This used to write only
+      // `adaptive_config`, which was correct for the one editor that could
+      // edit (adaptive) but would have appended nothing for any other type.
+      const updates = Object.fromEntries(
+        Object.entries(question).filter(([key]) => !['id', 'backendItemId', 'published'].includes(key)),
+      );
       dispatch({
         type: ACTIONS.UPDATE_QUESTION,
         payload: {
           sectionId: targetSectionId,
           questionId: editingQuestionId,
-          updates: { adaptive_config: question.adaptive_config },
+          updates,
         },
       });
     } else if (targetSectionId) {
@@ -698,7 +713,7 @@ export function useSectionCreationDrawer({ dispatch, ACTIONS, state }) {
           name: sectionName.trim() || fallbackSectionName,
           type: question.type,
           timer_minutes: Number(sectionTimer),
-          ai_level_override: null,
+          ai_level_override: aiLevelOverride,
           items: [question],
         },
       });
@@ -824,23 +839,7 @@ export function useSectionCreationDrawer({ dispatch, ACTIONS, state }) {
           locked: true,
     };
 
-    if (targetSectionId) {
-      if (!guardQuestionBudget()) return;
-      dispatch({ type: ACTIONS.ADD_QUESTION, payload: { sectionId: targetSectionId, question } });
-    } else {
-      if (!guardSectionBudget(sectionTimer)) return;
-      dispatch({
-        type: ACTIONS.ADD_SECTION,
-        payload: {
-          name: sectionName.trim() || 'Coding Section',
-          type: 'coding',
-          timer_minutes: Number(sectionTimer),
-          ai_level_override: aiLevel || null,
-          items: [question],
-        },
-      });
-    }
-    closeDrawer();
+    commitQuestion(question, 'Coding Section', { aiLevelOverride: aiLevel || null });
   };
 
   const handleCreateFreeText = () => {
@@ -859,23 +858,7 @@ export function useSectionCreationDrawer({ dispatch, ACTIONS, state }) {
           grading_hints: gradingHints.trim(),
     };
 
-    if (targetSectionId) {
-      if (!guardQuestionBudget()) return;
-      dispatch({ type: ACTIONS.ADD_QUESTION, payload: { sectionId: targetSectionId, question } });
-    } else {
-      if (!guardSectionBudget(sectionTimer)) return;
-      dispatch({
-        type: ACTIONS.ADD_SECTION,
-        payload: {
-          name: sectionName.trim() || 'Free Text Section',
-          type: 'free_text',
-          timer_minutes: Number(sectionTimer),
-          ai_level_override: null,
-          items: [question],
-        },
-      });
-    }
-    closeDrawer();
+    commitQuestion(question, 'Free Text Section');
   };
 
   const handleCreateRanking = () => {
@@ -900,23 +883,7 @@ export function useSectionCreationDrawer({ dispatch, ACTIONS, state }) {
           items: normalizedItems,
     };
 
-    if (targetSectionId) {
-      if (!guardQuestionBudget()) return;
-      dispatch({ type: ACTIONS.ADD_QUESTION, payload: { sectionId: targetSectionId, question } });
-    } else {
-      if (!guardSectionBudget(sectionTimer)) return;
-      dispatch({
-        type: ACTIONS.ADD_SECTION,
-        payload: {
-          name: sectionName.trim() || 'Ranking Section',
-          type: 'ranking',
-          timer_minutes: Number(sectionTimer),
-          ai_level_override: null,
-          items: [question],
-        },
-      });
-    }
-    closeDrawer();
+    commitQuestion(question, 'Ranking Section');
   };
 
   // Chips come from the engine catalog, not a hardcoded list: a focus area with

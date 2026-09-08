@@ -4,6 +4,12 @@ const PATTERN_LABELS = {
   boilerplate_only: 'Boilerplate Only',
   under_use: 'Under-utilized',
   over_reliant: 'Over-reliant',
+  // The backend reports `not_used` when the candidate had AI available and
+  // never used it (dimension reason `ai_not_used`). That is a choice, not
+  // under-utilization, and the label must not contradict the dimension.
+  not_used: 'AI Not Used',
+  inline_only: 'Inline Completions Only',
+  none: 'AI Disabled',
 };
 
 export default function AICollaborationPanel({ analysis }) {

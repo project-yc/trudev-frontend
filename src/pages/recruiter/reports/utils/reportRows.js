@@ -64,6 +64,29 @@ export function isShortlisted(row) {
   return SHORTLISTED_STAGES.includes(row.stage);
 }
 
+/**
+ * Rank-eligible rows first (by score, best first), then the unranked bucket
+ * (needs review / insufficient evidence / not graded / failed / not started).
+ * Eligible rows get a 1-based `rankPosition`; unranked rows get null, so a
+ * candidate the instrument could not rank is never shown with a number.
+ *
+ * `eligibilityOf(item)` lets the same ordering serve normalized rows and the
+ * raw rows CandidatesScreen still renders.
+ */
+export function orderByRankEligibility(items, eligibilityOf = row => row) {
+  const eligible = [];
+  const unranked = [];
+  items.forEach(item => {
+    const { rankEligible, score } = eligibilityOf(item);
+    (rankEligible && Number.isFinite(score) ? eligible : unranked).push(item);
+  });
+  eligible.sort((a, b) => eligibilityOf(b).score - eligibilityOf(a).score);
+  return [
+    ...eligible.map((item, index) => ({ ...item, rankPosition: index + 1 })),
+    ...unranked.map(item => ({ ...item, rankPosition: null })),
+  ];
+}
+
 /** Stable React key — the assessment instance id is unique per row. */
 export function getRowKey(row, fallbackIndex) {
   return row.assessmentInstanceId || row.sessionId || `row-${fallbackIndex}`;

@@ -1,6 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { cn } from '../../../../lib/utils';
+
+const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /**
  * Right-side drawer shell shared by every section panel.
@@ -10,6 +12,9 @@ import { cn } from '../../../../lib/utils';
  * Content-agnostic on purpose — MCQ and AI Adaptive panels reuse this shell.
  */
 export function SectionPanel({ open, title, subtitle, onClose, children }) {
+  const dialogRef = useRef(null);
+  const restoreFocusRef = useRef(null);
+
   useEffect(() => {
     if (!open) return undefined;
     const handleKeyDown = event => {
@@ -18,6 +23,38 @@ export function SectionPanel({ open, title, subtitle, onClose, children }) {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [open, onClose]);
+
+  // role=dialog: move focus into the drawer on open and hand it back to the
+  // control that opened it on close. Keyboard and screen-reader users were
+  // otherwise left on the page behind the overlay.
+  useEffect(() => {
+    if (!open) return undefined;
+    restoreFocusRef.current = document.activeElement;
+    // The wrapper animates `visibility` (invisible -> visible over 500ms) and
+    // an element is not focusable while the computed value is still hidden —
+    // which it is on the very frame the class flips. Retry each frame until
+    // focus lands inside the dialog, bounded so a missing target cannot loop.
+    const started = performance.now();
+    let frame = 0;
+    const attempt = () => {
+      const dialog = dialogRef.current;
+      if (!dialog) return;
+      const first = dialog.querySelector(FOCUSABLE) || dialog;
+      first.focus({ preventScroll: true });
+      if (!dialog.contains(document.activeElement) && performance.now() - started < 800) {
+        frame = window.requestAnimationFrame(attempt);
+      }
+    };
+    frame = window.requestAnimationFrame(attempt);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      const previous = restoreFocusRef.current;
+      if (previous && typeof previous.focus === 'function' && document.contains(previous)) {
+        previous.focus({ preventScroll: true });
+      }
+      restoreFocusRef.current = null;
+    };
+  }, [open]);
 
   return (
     <div className={cn('fixed inset-0 z-50 transition-[visibility] duration-500', open ? 'visible' : 'invisible')}>
@@ -33,10 +70,12 @@ export function SectionPanel({ open, title, subtitle, onClose, children }) {
       />
 
       <aside
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label={title}
         aria-hidden={!open}
+        tabIndex={-1}
         className={cn(
           'absolute inset-y-0 right-0 flex w-full max-w-[622px] flex-col border-l border-border-subtle bg-surface shadow-modal',
           'transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]',
@@ -78,5 +117,29 @@ export function PanelBlock({ title, action, children, className }) {
       )}
       {children}
     </section>
+  );
+}
+
+/** The error card every section panel shows when its slice failed to load. */
+export function PanelError({ children }) {
+  return (
+    <PanelBlock>
+      <div className="rounded-[10px] border border-error-border bg-error-bg px-[12px] py-[9px]">
+        <p className="text-[12px] leading-[17px] text-error">{children}</p>
+      </div>
+    </PanelBlock>
+  );
+}
+
+/**
+ * Neutral "nothing here" state. Returning null from a panel renders an empty
+ * drawer with nothing but a title, which reads as a broken panel rather than
+ * an absent result.
+ */
+export function PanelEmpty({ children }) {
+  return (
+    <PanelBlock>
+      <p className="text-[13px] leading-[20px] text-text-muted">{children}</p>
+    </PanelBlock>
   );
 }

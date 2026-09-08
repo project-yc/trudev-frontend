@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   Activity, AlertCircle, Ban, BookOpen, Calendar, CheckCircle, ChevronDown,
-  Clock, Code, Download, FileCheck2, Gauge, Globe, ListChecks,
+  Clock, Download, FileCheck2, Gauge, ListChecks,
   Loader, MoreHorizontal, Percent, RefreshCw, Search, Share2,
   Terminal, TrendingDown, TrendingUp, UserPlus, Users,
 } from 'lucide-react';
@@ -37,9 +37,9 @@ import {
   BreadcrumbPage, BreadcrumbSeparator,
 } from '../../components/ui/breadcrumb';
 import { cn } from '../../lib/utils';
+import { AI_LEVEL_LABELS } from '../../constants/aiLevels';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
-const AI_LEVEL_LABELS = { full: 'Full AI', partial: 'Partial AI', none: 'No AI', limited: 'Limited AI', chat_only: 'Chat only', inline_completions: 'Inline completions' };
 
 const CONTENT_TYPE_LABELS = {
   mcq: 'MCQ',
@@ -359,6 +359,9 @@ function BreakdownPanel({ sections }) {
                 <div className="mt-2 flex items-center gap-4 text-[11px] text-text-muted">
                   <span>Duration : {section.timer_minutes ? `${section.timer_minutes}m` : '—'}</span>
                   <span>Points : {totalPoints}</span>
+                  {section.items.some(i => i.content_type === 'technical_task' && i.ai_level) && (
+                    <span>AI : {[...new Set(section.items.filter(i => i.ai_level).map(i => AI_LEVEL_LABELS[i.ai_level] || i.ai_level))].join(', ')}</span>
+                  )}
                 </div>
               </div>
             );
@@ -459,11 +462,18 @@ export default function AssessmentDetailScreen() {
   const totalQuestions = sections.reduce((acc, s) => acc + s.items.length, 0);
   const cfg = assessment?.config_json || {};
   const caps = cfg.capabilities || {};
+  // Only `terminal` is enforced by the IDE (candidate-command-policy). `run_code`
+  // and `internet` are stored but inert, so showing them as green badges told
+  // recruiters a restriction existed that did not.
   const enabledCapabilities = [
     caps.terminal && { key: 'terminal', label: 'Terminal', icon: Terminal },
-    caps.run_code && { key: 'run_code', label: 'Run Code', icon: Code },
-    caps.internet && { key: 'internet', label: 'Internet', icon: Globe },
   ].filter(Boolean);
+  // The AI level that will actually run: per coding item (section override →
+  // item → task → template), not the template blob — which the create
+  // serializer defaults to "full", so a "Chat only" section read "Full AI".
+  const codingAiLevels = [...new Set(
+    sections.flatMap(s => s.items.filter(i => i.content_type === 'technical_task' && i.ai_level).map(i => i.ai_level)),
+  )];
 
   const handleViewReport = (sessionId) => navigate(`/recruiter/reports/${id}/${sessionId}`);
 
@@ -552,14 +562,16 @@ export default function AssessmentDetailScreen() {
               {assessment?.expiry_datetime && <> • Ends {formatLongDate(assessment.expiry_datetime)}</>}
             </p>
 
-            {(cfg.role || cfg.seniority || cfg.difficulty || cfg.ai_level || enabledCapabilities.length > 0) && (
+            {(cfg.role || cfg.seniority || cfg.difficulty || codingAiLevels.length > 0 || enabledCapabilities.length > 0) && (
               <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
                 {cfg.role && <Badge variant="secondary">{cfg.role}</Badge>}
                 {cfg.seniority && <Badge variant="secondary">{cfg.seniority}</Badge>}
                 {cfg.difficulty && (
                   <Badge className={difficultyBadgeClass(cfg.difficulty)}>{cfg.difficulty}</Badge>
                 )}
-                {cfg.ai_level && <Badge variant="default">{AI_LEVEL_LABELS[cfg.ai_level] || cfg.ai_level}</Badge>}
+                {codingAiLevels.map(level => (
+                  <Badge key={level} variant="default">{AI_LEVEL_LABELS[level] || level}</Badge>
+                ))}
                 {enabledCapabilities.map(({ key, label, icon }) => {
                   const Icon = icon;
                   return (

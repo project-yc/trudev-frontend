@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAssessmentBuilder } from '../context/AssessmentBuilderContext';
-import { SECTION_TYPE_CONFIG, AI_LEVEL_LABELS } from '../constants/sectionTypeConfig';
+import { SECTION_TYPE_CONFIG, getPointValue } from '../constants/sectionTypeConfig';
+import { formatAiLevel } from '../../../../../constants/aiLevels';
 import { publishAssessmentFlow, saveDraft } from '../api/assessmentBuilderApi';
 import { LeftPanel } from '../components/LeftPanel/LeftPanel';
 import { Button } from '../../../../../components/ui/button';
@@ -28,11 +29,6 @@ const TYPE_DOT_CLASS = {
   ranking: 'bg-error',
   adaptive: 'bg-brand',
 };
-
-function getPointValue(item) {
-  if (Number.isFinite(Number(item.points))) return Number(item.points);
-  return item.type === 'coding' ? 5 : 0;
-}
 
 function formatTwoDigit(value) {
   return String(Math.max(Number(value) || 0, 0)).padStart(2, '0');
@@ -77,7 +73,7 @@ function Metric({ value, label }) {
 function EmptyReviewTable() {
   return (
     <TableRow>
-      <TableCell colSpan={5} className="h-[92px] text-center text-text-muted">
+      <TableCell colSpan={6} className="h-[92px] text-center text-text-muted">
         No sections added yet.
       </TableCell>
     </TableRow>
@@ -94,6 +90,7 @@ function ReviewTable({ rows }) {
             <TableHead>Section name</TableHead>
             <TableHead className="w-[132px]">Total Questions</TableHead>
             <TableHead className="w-[112px]">Total time</TableHead>
+            <TableHead className="w-[120px]">AI access</TableHead>
             <TableHead className="w-[104px] pr-[16px]">Total points</TableHead>
           </TableRow>
         </TableHeader>
@@ -112,6 +109,7 @@ function ReviewTable({ rows }) {
                 <TableCell className="font-medium text-text-secondary">{row.name}</TableCell>
                 <TableCell className="font-medium text-text-secondary">{row.questionCount}</TableCell>
                 <TableCell className="font-medium text-text-secondary">{row.time}</TableCell>
+                <TableCell className="font-medium text-text-secondary">{row.aiLevel}</TableCell>
                 <TableCell className="pr-[16px] font-semibold text-text-primary">{row.points}</TableCell>
               </TableRow>
             ))
@@ -129,7 +127,11 @@ export function AssessmentReviewStep() {
   const [draftSaved, setDraftSaved] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
 
-  const { sections, name, duration_minutes, ai_level } = state;
+  const { sections, name, duration_minutes } = state;
+  // The template-level default the backend applies when a coding section sets
+  // no override (DEFAULT_CONFIG_JSON.ai_level). `state.ai_level` was read here
+  // before, but nothing ever set it, so the review never showed an AI level.
+  const templateAiLevel = state.config_json?.ai_level || 'full';
 
   const totalQuestions = sections.reduce((acc, section) => acc + section.items.length, 0);
   const totalPts = sections.reduce(
@@ -142,6 +144,17 @@ export function AssessmentReviewStep() {
     const points = section.items.reduce((sum, item) => sum + getPointValue(item), 0);
     const minutes = Number(section.timer_minutes ?? cfg.defaultTimerMinutes ?? 0);
 
+    // Per-section AI level, resolved the way the runtime does: the section's
+    // override (also mirrored onto the coding item), else the template default.
+    // Only coding sections run in the IDE, so only they have one.
+    let aiLevel = '—';
+    if (section.type === 'coding') {
+      const codingItem = section.items.find(item => item.type === 'coding');
+      aiLevel = formatAiLevel(
+        section.ai_level_override || codingItem?.ai_level || templateAiLevel,
+      );
+    }
+
     return {
       id: section.id,
       dotClass: TYPE_DOT_CLASS[section.type] || TYPE_DOT_CLASS.mcq,
@@ -149,9 +162,10 @@ export function AssessmentReviewStep() {
       name: section.name || cfg.label,
       questionCount: formatTwoDigit(section.items.length),
       time: `${minutes}m`,
+      aiLevel,
       points: `${points} pts`,
     };
-  }), [sections]);
+  }), [sections, templateAiLevel]);
 
   const handleAddSection = () => {
     dispatch({ type: ACTIONS.SET_STEP, payload: 2 });
@@ -232,7 +246,6 @@ export function AssessmentReviewStep() {
               <Metric value={formatTwoDigit(sections.length)} label="Sections" />
               <Metric value={formatTwoDigit(totalQuestions)} label="Questions" />
               <Metric value={formatTwoDigit(totalPts)} label="Points" />
-              {ai_level && <Metric value="AI" label={AI_LEVEL_LABELS[ai_level] || ai_level} />}
             </div>
           </div>
 

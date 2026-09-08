@@ -14,6 +14,7 @@ import {
   verifyGitSource,
 } from '../../api/recruiter/assessment';
 import { createPresetFromAssessment } from '../../api/admin/presets';
+import { AI_LEVEL_OPTIONS } from '../../constants/aiLevels';
 
 const GITHUB_REPO_RE = /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/?$/;
 
@@ -35,12 +36,16 @@ function CreateAssessmentModal({ onClose, onCreated }) {
   const [loading, setLoading] = useState(false);
   const [error, setError]   = useState('');
 
-  const AI_OPTIONS = [
-    { value: 'full',                label: 'Full Agent',    desc: 'Orchestrator + chat + completions',  Icon: Sparkles   },
-    { value: 'chat_only',           label: 'Chat + Inline', desc: 'Chat (manual context) + completions', Icon: MessageSquare },
-    { value: 'inline_completions',  label: 'Inline Only',  desc: 'Code suggestions only',               Icon: Zap        },
-    { value: 'none',                label: 'No AI',         desc: 'All AI features disabled',            Icon: ZapOff     },
-  ];
+  // Labels come from the shared option list; only the admin-facing description
+  // and icon are local.
+  const AI_OPTION_META = {
+    full:               { desc: 'Orchestrator + chat + completions',            Icon: Sparkles      },
+    chat_only:          { desc: 'Chat (manual context) + completions',          Icon: MessageSquare },
+    chat_guided:        { desc: 'Chat explains and hints only — no solutions',  Icon: MessageSquare },
+    inline_completions: { desc: 'Code suggestions only',                        Icon: Zap           },
+    none:               { desc: 'All AI features disabled',                     Icon: ZapOff        },
+  };
+  const AI_OPTIONS = AI_LEVEL_OPTIONS.map(option => ({ ...option, ...AI_OPTION_META[option.value] }));
 
   const handleSubmit = async (e) => {
     e.preventDefault();

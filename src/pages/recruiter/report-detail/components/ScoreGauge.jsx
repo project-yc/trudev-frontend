@@ -35,10 +35,12 @@ export function ScoreGauge({ value, caption, gradientId }) {
   const resolvedGradientId = gradientId || fallbackGradientId;
 
   const centre = SIZE / 2;
-  const numeric = Number(value);
   // A missing score is not a zero. Coercing it painted an empty gauge reading
   // "0/100", which reads as the candidate scoring nothing rather than the
-  // section not having been graded.
+  // section not having been graded. Guard null/'' explicitly, because
+  // Number(null) === 0 is finite and would defeat the check below.
+  const numeric =
+    value === null || value === undefined || value === '' ? NaN : Number(value);
   const hasScore = Number.isFinite(numeric);
   const clamped = hasScore ? Math.max(0, Math.min(100, numeric)) : 0;
   const track = describeArc(centre, centre, RADIUS, START_ANGLE, SWEEP);

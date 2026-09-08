@@ -1,12 +1,10 @@
 import { useState, useEffect } from 'react';
 import { IconTerminal2, IconClock, IconSearch, IconRobot } from '@tabler/icons-react';
 import { useAssessmentBuilder } from '../../context/AssessmentBuilderContext';
+import { useSectionItemEditor } from '../../context/useSectionItemEditor';
 import { getLibraryTasks } from '../../api/assessmentBuilderApi';
-import { AI_LEVEL_OPTIONS, CODING_RUBRIC_DIMENSIONS } from '../AddSectionPanel/constants';
-
-// Mirrors _MAX_RUBRIC_WEIGHT in assessments/views/sections.py. Weights outside
-// 1..5 are rejected server-side.
-const RUBRIC_WEIGHT_CHOICES = [1, 2, 3, 4, 5];
+import { AI_LEVEL_OPTIONS } from '../../../../../../constants/aiLevels';
+import { CODING_RUBRIC_DIMENSIONS, RUBRIC_WEIGHT_HELP, RUBRIC_WEIGHT_OPTIONS } from '../AddSectionPanel/constants';
 
 function rubricWeightsWithDefaults(weights) {
   return CODING_RUBRIC_DIMENSIONS.reduce((acc, { key }) => {
@@ -44,7 +42,8 @@ function TaskCard({ task, selected, onSelect }) {
 }
 
 export function CodingEditor({ sectionId, item }) {
-  const { dispatch, ACTIONS, state } = useAssessmentBuilder();
+  const { state } = useAssessmentBuilder();
+  const { updateItem, updateSection } = useSectionItemEditor(sectionId, item.id);
   const section = state.sections.find(s => s.id === sectionId);
 
   const [libraryTasks, setLibraryTasks] = useState([]);
@@ -78,14 +77,6 @@ export function CodingEditor({ sectionId, item }) {
       .catch(e => setLibError(e.message))
       .finally(() => setLoadingLibrary(false));
   }, []);
-
-  const updateItem = (updates) => {
-    dispatch({ type: ACTIONS.UPDATE_QUESTION, payload: { sectionId, questionId: item.id, updates } });
-  };
-
-  const updateSection = (updates) => {
-    dispatch({ type: ACTIONS.UPDATE_SECTION, payload: { sectionId, updates } });
-  };
 
   // The AI level is per-USE of the task, so it belongs on the section item's
   // override_config_json — and `buildOverrideConfig` reads it off the ITEM.
@@ -156,7 +147,10 @@ export function CodingEditor({ sectionId, item }) {
             {/* Values come from the shared constant, not a second hardcoded
                 list — this one used to send "chat", which AILevel.choices()
                 rejects, and omitted inline_completions entirely. */}
-            <option value="">Default</option>
+            {/* An empty override resolves to the template default, which is
+                'full' — so "Default" silently means full agentic AI. Say so,
+                rather than letting a recruiter think it means "off". */}
+            <option value="">Default (Full agent)</option>
             {AI_LEVEL_OPTIONS.map(({ value, label }) => (
               <option key={value} value={value}>{label}</option>
             ))}
@@ -225,7 +219,7 @@ export function CodingEditor({ sectionId, item }) {
             <div>
               <p className="text-[13px] font-semibold text-text-primary">Rubric weighting</p>
               <p className="text-[12px] text-text-secondary mt-0.5">
-                How much each dimension counts toward the section score. Leave them equal to weight all four the same.
+                {RUBRIC_WEIGHT_HELP}
               </p>
             </div>
 
@@ -238,8 +232,8 @@ export function CodingEditor({ sectionId, item }) {
                     onChange={e => setRubricWeight(key, e.target.value)}
                     className="ml-auto px-2 py-1 bg-page border border-border-default rounded-lg text-[13px] font-semibold text-text-primary focus:outline-none focus:border-brand"
                   >
-                    {RUBRIC_WEIGHT_CHOICES.map(value => (
-                      <option key={value} value={value}>{value}×</option>
+                    {RUBRIC_WEIGHT_OPTIONS.map(value => (
+                      <option key={value} value={value}>{value}</option>
                     ))}
                   </select>
                 </div>

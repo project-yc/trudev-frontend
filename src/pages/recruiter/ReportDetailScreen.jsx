@@ -1,14 +1,26 @@
 // ReportDetailScreen - recruiter detail view with assessment-level scoring
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { AlertCircle, Download, Loader, Share2 } from 'lucide-react';
+import { AlertCircle, Download, Loader } from 'lucide-react';
+import { toast } from 'sonner';
 import { getRecruiterReportDetail } from '../../api/recruiter/assessment.jsx';
-import { getReportByInstance } from '../../api/recruiter/reports';
+import { getReportByInstance, reviewStatusLabel } from '../../api/recruiter/reports';
+import { updatePipelineCandidate } from '../../api/recruiter/pipeline.jsx';
 import { AskAnythingBar } from '../../components/recruiter/AskAnythingBar.jsx';
+import { Badge } from '../../components/ui/badge';
+import { formatAiLevel } from '../../constants/aiLevels';
 import { SectionPanel } from './report-detail/components/SectionPanel';
 import { SectionCard } from './report-detail/components/SectionCard';
 import { SectionPanelContent } from './report-detail/components/panels';
 import { getSectionPanelTitle } from './report-detail/constants/sectionPanels';
+import { SIGNAL_LABELS } from './report-detail/constants/sectionCards';
+import { scoreBand } from './report-detail/utils/reportFormat';
+import {
+  GRADING_STATE,
+  getReportGradingState,
+  getReviewSummary,
+  getSectionGradingState,
+} from './report-detail/utils/gradingState';
 
 const SECTION_META = {
   technical_task: {
@@ -61,12 +73,6 @@ const SECTION_META = {
   },
 };
 
-const SIGNAL_LABELS = {
-  green: 'STRONG',
-  yellow: 'MODERATE',
-  red: 'WEAK',
-};
-
 function getSectionMeta(type) {
   return SECTION_META[type] || SECTION_META.technical_task;
 }
@@ -79,22 +85,8 @@ function getCandidateEmail(report) {
   return report.candidate_email || report.candidate?.email || report.assessment_instance?.candidate_email || '';
 }
 
-function getScorePercent(section) {
-  const score = Number(section.score ?? 0);
-  const maxScore = Number(section.max_score ?? 0);
-  if (maxScore <= 0) return null;
-  return Math.round((score / maxScore) * 100);
-}
-
-/**
- * Renders a score, or null when there isn't one.
- *
- * This used to return '00' for a missing value, so an ungraded section — which
- * is exactly when getScorePercent returns null — was displayed as a hard zero
- * with nothing marking it as ungraded. Callers must handle null.
- */
+/** "07" — two digits, as the Figma prints section percentages. */
 function formatScore(value) {
-  if (value === null || value === undefined || Number.isNaN(Number(value))) return null;
   return String(Math.round(Number(value))).padStart(2, '0');
 }
 
@@ -118,10 +110,68 @@ function CandidateAvatar({ name }) {
   );
 }
 
-function ScoreOverview({ report, sections }) {
+/**
+ * Review status, rank eligibility and AI level, next to the hero score. These
+ * used to live only inside the coding drawer, so the page-level number carried
+ * none of the context needed to read it.
+ */
+function ReviewBadges({ report, grading }) {
+  const { reviewStatus, rankEligible, aiAccessLevel } = getReviewSummary(report);
+  if (grading.state !== GRADING_STATE.GRADED) return null;
+  const badges = [];
+  if (aiAccessLevel) {
+    badges.push(
+      <Badge key="ai" variant="secondary" title="AI access level the score was earned under">
+        AI: {formatAiLevel(aiAccessLevel)}
+      </Badge>,
+    );
+  }
+  if (reviewStatus) {
+    badges.push(
+      <Badge key="review" variant={reviewStatus === 'clear' ? 'success' : 'warning'}>
+        Review: {reviewStatusLabel(reviewStatus)}
+      </Badge>,
+    );
+  }
+  if (rankEligible !== null) {
+    badges.push(
+      <Badge key="rank" variant={rankEligible ? 'success' : 'warning'}>
+        {rankEligible ? 'Rank eligible' : 'Not rank eligible'}
+      </Badge>,
+    );
+  }
+  if (badges.length === 0) return null;
+  return <div className="mt-[8px] flex flex-wrap justify-end gap-[6px]">{badges}</div>;
+}
+
+function HeroScore({ grading }) {
+  if (grading.state === GRADING_STATE.GRADED) {
+    const band = scoreBand(grading.score);
+    return (
+      <>
+        <p className="text-[20px] font-bold leading-none text-[var(--color-assessment-accent)]">
+          {grading.score.toFixed(1)} <span className="text-[14px] font-semibold text-text-primary">(out of 100)</span>
+        </p>
+        <p className="mt-[4px] text-[12px] text-text-secondary">
+          Overall signal{band ? ` · ${SIGNAL_LABELS[band]}` : ''}
+        </p>
+      </>
+    );
+  }
+  const failed = grading.state === GRADING_STATE.FAILED;
+  return (
+    <>
+      <p className={`text-[18px] font-bold leading-none ${failed ? 'text-error' : 'text-text-secondary'}`}>
+        {grading.label}
+      </p>
+      <p className="mt-[4px] max-w-[320px] text-[12px] text-text-secondary">{grading.detail}</p>
+    </>
+  );
+}
+
+function ScoreOverview({ report, sections, grading }) {
   const name = getCandidateName(report);
   const email = getCandidateEmail(report);
-  const overallScore = Number(report.overall_score ?? report.percentage ?? 0);
 
   const orderedTypes = ['technical_task', 'mcq', 'free_text', 'ranking', 'adaptive_interview'];
   const sectionMap = new Map(sections.map(section => [section.content_type, section]));
@@ -140,7 +190,7 @@ function ScoreOverview({ report, sections }) {
       return {
         type,
         section,
-        percent: getScorePercent(section),
+        grading: getSectionGradingState(section, grading),
         points: section.max_score ?? section.points ?? 0,
       };
     })
@@ -157,10 +207,8 @@ function ScoreOverview({ report, sections }) {
           </div>
         </div>
         <div className="text-right">
-          <p className="text-[20px] font-bold leading-none text-[var(--color-assessment-accent)]">
-            {overallScore ? overallScore.toFixed(1) : '0.0'} <span className="text-[14px] font-semibold text-text-primary">(out of 100)</span>
-          </p>
-          <p className="mt-[4px] text-[12px] text-text-muted">Overall average score</p>
+          <HeroScore grading={grading} />
+          <ReviewBadges report={report} grading={grading} />
         </div>
       </div>
 
@@ -168,9 +216,10 @@ function ScoreOverview({ report, sections }) {
         {/* Figma sizes each bar to its own label rather than using equal
             columns: 283 + 146 + 205 + 151 + 204 + 4x15 gaps = 1049. */}
         <div className="flex flex-wrap gap-[15px]">
-          {overviewItems.map(({ type, percent, points }) => {
+          {overviewItems.map(({ type, grading: sectionGrading, points }) => {
             const meta = getSectionMeta(type);
-            const displayPercent = percent ?? 0;
+            const graded = sectionGrading.state === GRADING_STATE.GRADED;
+            const displayPercent = graded ? sectionGrading.percent : 0;
             return (
               <div
                 key={type}
@@ -185,11 +234,16 @@ function ScoreOverview({ report, sections }) {
                 </div>
                 <div className="mt-[16px] flex items-center gap-[7px]">
                   <span className={`h-[12px] w-[12px] rounded-full ${meta.dot}`} />
-                  {formatScore(percent) === null ? (
-                    <span className="text-[13px] font-semibold text-text-muted">Not graded</span>
-                  ) : (
+                  {graded ? (
                     <span className="text-[13px] font-bold text-text-primary">
-                      {formatScore(percent)}% of {points} pts
+                      {formatScore(sectionGrading.percent)}% of {points} pts
+                    </span>
+                  ) : (
+                    <span
+                      title={sectionGrading.detail}
+                      className={`text-[13px] font-semibold ${sectionGrading.state === GRADING_STATE.FAILED ? 'text-error' : 'text-text-secondary'}`}
+                    >
+                      {sectionGrading.label}
                     </span>
                   )}
                 </div>
@@ -237,6 +291,10 @@ export default function ReportDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeSection, setActiveSection] = useState(null);
+  // Pipeline decision made from this page. Seeded from the payload's `stage`
+  // when the backend sends one; otherwise unknown until the recruiter acts.
+  const [stage, setStage] = useState(null);
+  const [stageUpdating, setStageUpdating] = useState(false);
 
   useEffect(() => {
     // Instance-keyed is the current contract; the session-keyed route is kept
@@ -246,10 +304,37 @@ export default function ReportDetailScreen() {
       : getRecruiterReportDetail(assessmentId, sessionId);
 
     request
-      .then(data => setReport(data.data || data))
+      .then(data => {
+        const payload = data.data || data;
+        setReport(payload);
+        if (payload?.stage) setStage(String(payload.stage).toLowerCase());
+      })
       .catch(err => setError(err.message || 'Failed to load report.'))
       .finally(() => setLoading(false));
   }, [assessmentId, sessionId, assessmentInstanceId]);
+
+  // Same call the pipeline board makes for its stage select
+  // (PATCH /api/v1/recruiter/candidates/<instance>/pipeline).
+  const instanceId = assessmentInstanceId || report?.assessment_instance_id || null;
+  const handleStageChange = useCallback(async (nextStage) => {
+    if (!instanceId || stageUpdating) return;
+    const label = nextStage === 'shortlisted' ? 'Shortlist' : 'Reject';
+    const name = report ? getCandidateName(report) : 'this candidate';
+    if (!window.confirm(`${label} ${name}? This moves them to the "${nextStage === 'shortlisted' ? 'Shortlisted' : 'Rejected'}" pipeline stage.`)) return;
+
+    setStageUpdating(true);
+    try {
+      await updatePipelineCandidate(instanceId, { stage: nextStage });
+      setStage(nextStage);
+      toast.success(`${name} ${nextStage === 'shortlisted' ? 'shortlisted' : 'rejected'}`, {
+        description: 'Pipeline stage updated.',
+      });
+    } catch (err) {
+      toast.error('Could not update pipeline stage', { description: err?.message || 'Please try again.' });
+    } finally {
+      setStageUpdating(false);
+    }
+  }, [instanceId, stageUpdating, report]);
 
   const sections = useMemo(() => {
     if (!Array.isArray(report?.section_results)) return [];
@@ -280,9 +365,10 @@ export default function ReportDetailScreen() {
   if (!report) return null;
 
   const candidateName = getCandidateName(report);
+  const grading = getReportGradingState(report);
   const taskSections = sections.length > 0
     ? sections
-    : [{ section_name: 'Coding Task', content_type: 'technical_task', score: report.overall_score ?? 0, max_score: 100, status: report.status }];
+    : [{ section_name: 'Coding Task', content_type: 'technical_task', score: report.overall_score ?? null, max_score: 100, status: report.status }];
 
   return (
     <div className="flex min-h-full flex-col bg-page">
@@ -294,22 +380,18 @@ export default function ReportDetailScreen() {
             <div>
               <h1 className="text-[22px] font-bold leading-[27px] text-text-primary">Detailed report</h1>
               <p className="mt-[5px] text-[15px] leading-[18px] text-text-secondary">
-                Candidate assessment reports - scored and ranked by performance.
+                Evidence from the candidate&apos;s assessment — overall signal by section, not a verdict.
               </p>
             </div>
 
             <div className="flex flex-wrap items-center gap-[12px]">
-              <button
-                type="button"
-                className="inline-flex h-[41px] items-center justify-center gap-[8px] rounded-[8px] border border-border-default bg-surface px-[23px] text-[14px] font-medium text-text-primary shadow-card transition-colors hover:bg-surface-hover"
-              >
-                <Share2 className="h-[15px] w-[15px]" strokeWidth={1.8} />
-                Share report
-              </button>
+              {/* "Share report" was a button with no handler; removed rather
+                  than left as a dead control. */}
               <button
                 type="button"
                 onClick={() => downloadReport(report, candidateName)}
-                className="inline-flex h-[41px] items-center justify-center gap-[8px] rounded-[8px] bg-[var(--color-assessment-cta)] px-[23px] text-[14px] font-bold text-[var(--color-assessment-cta-text)] transition-colors hover:bg-[var(--color-assessment-cta-hover)]"
+                // Dark text on the orange CTA: white on #FF8528 is 2.4:1.
+                className="inline-flex h-[41px] items-center justify-center gap-[8px] rounded-[8px] bg-[var(--color-assessment-cta)] px-[23px] text-[14px] font-bold text-on-brand transition-colors hover:bg-[var(--color-assessment-cta-hover)]"
               >
                 <Download className="h-[15px] w-[15px]" strokeWidth={1.8} />
                 {/* The handler serializes the report to JSON — labelling it
@@ -320,7 +402,7 @@ export default function ReportDetailScreen() {
           </div>
 
           <div className="mt-[29px]">
-            <ScoreOverview report={report} sections={sections} />
+            <ScoreOverview report={report} sections={sections} grading={grading} />
           </div>
 
           <div className="mt-[20px]">
@@ -338,36 +420,38 @@ export default function ReportDetailScreen() {
               <SectionCard
                 key={section.section_id || `${section.content_type}-${index}`}
                 section={section}
+                reportGrading={grading}
                 onShowDetails={setActiveSection}
               />
             ))}
           </div>
 
-          <div className="absolute bottom-[20px] right-[38px] flex flex-wrap justify-end gap-[8px]">
-            {/* A session only exists for coding sections. On an adaptive-only or
-                MCQ-only assessment there is nothing to watch, and the button
-                rendered anyway. */}
-            {report.session_id && (
+          {/* "Watch session" had no handler and no playback exists; removed. */}
+          {instanceId && (
+            <div className="absolute bottom-[20px] right-[38px] flex flex-wrap items-center justify-end gap-[8px]">
+              {stage && (
+                <span className="mr-[4px] text-[12px] text-text-secondary">
+                  Pipeline stage: <span className="font-semibold capitalize text-text-primary">{stage.replace(/_/g, ' ')}</span>
+                </span>
+              )}
               <button
                 type="button"
-                className="inline-flex h-[41px] min-w-[146px] items-center justify-center rounded-[8px] border border-border-default bg-surface px-[22px] text-[14px] font-medium text-text-primary shadow-card transition-colors hover:bg-surface-hover"
+                disabled={stageUpdating || stage === 'rejected'}
+                onClick={() => handleStageChange('rejected')}
+                className="inline-flex h-[41px] min-w-[91px] items-center justify-center rounded-[8px] border border-error-border bg-error-bg px-[20px] text-[14px] font-bold text-error transition-colors hover:bg-error-bg/80 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Watch session
+                {stage === 'rejected' ? 'Rejected' : 'Reject'}
               </button>
-            )}
-            <button
-              type="button"
-              className="inline-flex h-[41px] min-w-[91px] items-center justify-center rounded-[8px] border border-error-border bg-error-bg px-[20px] text-[14px] font-bold text-error transition-colors hover:bg-error-bg/80"
-            >
-              Reject
-            </button>
-            <button
-              type="button"
-              className="inline-flex h-[41px] min-w-[107px] items-center justify-center rounded-[8px] bg-[var(--color-assessment-accent)] px-[20px] text-[14px] font-bold text-surface transition-opacity hover:opacity-90"
-            >
-              Shortlist
-            </button>
-          </div>
+              <button
+                type="button"
+                disabled={stageUpdating || stage === 'shortlisted'}
+                onClick={() => handleStageChange('shortlisted')}
+                className="inline-flex h-[41px] min-w-[107px] items-center justify-center rounded-[8px] bg-[var(--color-assessment-accent)] px-[20px] text-[14px] font-bold text-on-brand transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {stageUpdating ? 'Saving…' : stage === 'shortlisted' ? 'Shortlisted' : 'Shortlist'}
+              </button>
+            </div>
+          )}
         </section>
       </div>
 

@@ -2,6 +2,7 @@ import { GripVertical } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useAssessmentBuilder } from '../../context/AssessmentBuilderContext';
+import { getPointValue } from '../../constants/sectionTypeConfig';
 
 function getQuestionLabel(item, index) {
   if (item.type === 'coding') {
@@ -9,11 +10,6 @@ function getQuestionLabel(item, index) {
   }
   const prompt = item.prompt?.trim();
   return prompt || `Question ${index + 1}`;
-}
-
-function getPointValue(item) {
-  if (Number.isFinite(Number(item.points))) return Number(item.points);
-  return item.type === 'coding' ? 5 : 0;
 }
 
 export function QuestionOutlineItem({ sectionId, item, index, isActive }) {

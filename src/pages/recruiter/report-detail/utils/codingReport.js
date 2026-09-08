@@ -6,14 +6,25 @@
 // object first and falling back to the flattened keys keeps that distinction
 // in one place instead of in every component.
 
-export const DIMENSION_ORDER = [
-  ['task_completion', 'Task Completion'],
-  ['design_quality', 'Design Quality'],
-  ['problem_solving_process', 'Problem-Solving Process'],
-  ['ai_collaboration', 'AI Collaboration'],
-];
+import { CODING_DIMENSION_KEYS } from '../../../../constants/codingDimensions';
+import { formatDuration, scoreTone, toFiniteNumber } from './reportFormat';
 
-export const SIGNAL_TOKENS = {
+// Shared with the other panels. Re-exported so the coding panel keeps one
+// import for everything it reads from this module.
+export { formatDuration };
+export const getScoreTone = scoreTone;
+
+// Hiring-manager wording for the shared dimension keys.
+const DIMENSION_LABELS = {
+  task_completion: 'Task Completion',
+  design_quality: 'Design Quality',
+  problem_solving_process: 'Problem-Solving Process',
+  ai_collaboration: 'AI Collaboration',
+};
+
+export const DIMENSION_ORDER = CODING_DIMENSION_KEYS.map(key => [key, DIMENSION_LABELS[key]]);
+
+const SIGNAL_TOKENS = {
   green: { dot: 'bg-success', text: 'text-success', label: 'Strong' },
   yellow: { dot: 'bg-warning', text: 'text-warning', label: 'Mixed' },
   red: { dot: 'bg-error', text: 'text-error', label: 'Weak' },
@@ -24,10 +35,11 @@ export function getSignalTokens(signal) {
   return SIGNAL_TOKENS[signal] || SIGNAL_TOKENS.not_evaluated;
 }
 
-function toNumber(value) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
+// null / undefined mean "not evaluated" — keep them null. Without this guard
+// Number(null) === 0, so a not-evaluated coding score rendered as a real 0 on
+// the recruiter's gauge (the backend returns null, not 0, for a report where no
+// dimension could be evaluated).
+const toNumber = toFiniteNumber;
 
 export function selectCodingReport(report) {
   const analytics = report?.coding_analytics || {};
@@ -38,6 +50,10 @@ export function selectCodingReport(report) {
     status: analytics.status || detail.status || null,
     // Coding-section score, NOT the assessment total.
     score: toNumber(detail.overall_score),
+    // The AI level the candidate actually worked at — needed to interpret and
+    // compare the score (full/chat_only/chat_guided/inline_completions/none carry different
+    // weightings).
+    aiAccessLevel: detail.ai_access_level || report?.ai_access_level || null,
     reviewPolicy: detail.review_policy || report?.review_policy || null,
     topInsight: detail.top_insight || report?.top_insight || '',
     // Tags on the coding task — the "Top skills / Labels" chips.
@@ -54,9 +70,27 @@ export function selectCodingReport(report) {
   };
 }
 
-/** `requires_human_review` is the only state that warrants a banner. */
+/**
+ * Anything that is not `clear` warrants a banner: `requires_human_review` (a
+ * verification gap a person must look at) AND `insufficient_evidence` (the
+ * instrument did not capture enough to rank this candidate). The second used
+ * to render as "Review status: Clear" while `rank_eligible` was false.
+ */
 export function needsHumanReview(reviewPolicy) {
-  return reviewPolicy?.review_status === 'requires_human_review';
+  const status = reviewPolicy?.review_status;
+  return status === 'requires_human_review' || status === 'insufficient_evidence';
+}
+
+const REVIEW_STATUS_LABELS = {
+  clear: 'Clear',
+  requires_human_review: 'Needs review',
+  insufficient_evidence: 'Insufficient evidence',
+};
+
+export function reviewStatusLabel(reviewPolicy) {
+  const status = reviewPolicy?.review_status;
+  if (!status) return '—';
+  return REVIEW_STATUS_LABELS[status] || status;
 }
 
 /** Turns `verification:low_post_ai_accept_run_ratio` into readable prose. */
@@ -70,18 +104,6 @@ export function formatPercent(value) {
   const parsed = toNumber(value);
   if (parsed === null) return null;
   return `${Math.round(parsed <= 1 ? parsed * 100 : parsed)}%`;
-}
-
-/**
- * Score colour thresholds, matching the Figma rubric table where 92 reads
- * green, 56 and 42 amber, and 08 red.
- */
-export function getScoreTone(score) {
-  const value = Number(score);
-  if (!Number.isFinite(value)) return 'text-text-muted';
-  if (value >= 75) return 'text-success';
-  if (value >= 40) return 'text-warning';
-  return 'text-error';
 }
 
 /** Figma prints episode times as "Friday, 4:16PM". */
@@ -99,15 +121,6 @@ export function formatTimelineTimestamp(timeRange) {
   }).format(date).replace(/\s/g, '');
 
   return `${weekday}, ${time}`;
-}
-
-export function formatDuration(seconds) {
-  const total = Math.round(Number(seconds) || 0);
-  if (total <= 0) return null;
-  if (total < 60) return `${total}s`;
-  const minutes = Math.floor(total / 60);
-  const remainder = total % 60;
-  return remainder ? `${minutes}m ${remainder}s` : `${minutes}m`;
 }
 
 /**

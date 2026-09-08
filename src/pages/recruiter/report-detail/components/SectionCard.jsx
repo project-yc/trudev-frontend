@@ -6,17 +6,10 @@ import {
   getSectionSignalLabel,
   getSectionSignalTone,
 } from '../constants/sectionCards';
+import { GRADING_STATE, getSectionGradingState } from '../utils/gradingState';
 
-function getScorePercent(section) {
-  const score = Number(section?.score ?? 0);
-  const maxScore = Number(section?.max_score ?? 0);
-  if (maxScore <= 0) return null;
-  return Math.round((score / maxScore) * 100);
-}
-
-/** Null when there is no score — an ungraded section must not read as a zero. */
+/** "07" — two digits, as the Figma prints section percentages. */
 function formatScore(value) {
-  if (value === null || value === undefined || Number.isNaN(Number(value))) return null;
   return String(Math.round(Number(value))).padStart(2, '0');
 }
 
@@ -42,12 +35,20 @@ function CardIllustration({ badge }) {
   );
 }
 
-/** One assessment section. Clicking "Show details" opens that section's panel. */
-export function SectionCard({ section, onShowDetails }) {
+/**
+ * One assessment section. Clicking "Show details" opens that section's panel.
+ *
+ * `reportGrading` is the report-level grading state: while the report is not
+ * finalized, or any of the section's items failed to grade, the card says so
+ * instead of printing a percentage that was never earned.
+ */
+export function SectionCard({ section, reportGrading, onShowDetails }) {
   const type = section?.content_type;
-  const percent = getScorePercent(section);
+  const grading = getSectionGradingState(section, reportGrading);
+  const graded = grading.state === GRADING_STATE.GRADED;
+  const percent = graded ? grading.percent : null;
   const title = section?.section_name || SECTION_TASK_NAMES[type] || 'Section';
-  const signalLabel = getSectionSignalLabel(percent);
+  const signalLabel = graded ? getSectionSignalLabel(percent, section?.signal) : null;
 
   return (
     <article
@@ -64,23 +65,33 @@ export function SectionCard({ section, onShowDetails }) {
           <button
             type="button"
             onClick={() => onShowDetails(section)}
-            className="flex-shrink-0 text-[14px] font-medium leading-[18px] text-brand transition-colors hover:text-brand-hover"
+            className="flex-shrink-0 text-[14px] font-medium leading-[18px] text-brand-deep transition-colors hover:text-brand-navy"
           >
             Show details
           </button>
         </div>
 
         <div className="mt-auto">
-          {formatScore(percent) === null ? (
-            <p className="text-[15px] font-semibold leading-[18px] text-text-muted">Not graded</p>
-          ) : (
+          {graded ? (
             <p className="text-[20px] font-bold leading-[18px] text-text-primary">
               {formatScore(percent)}%{' '}
-              <span className="text-[14px] font-medium text-text-muted">of points available</span>
+              <span className="text-[14px] font-medium text-text-secondary">of points available</span>
             </p>
+          ) : (
+            <>
+              <p
+                className={cn(
+                  'text-[15px] font-semibold leading-[18px]',
+                  grading.state === GRADING_STATE.FAILED ? 'text-error' : 'text-text-secondary',
+                )}
+              >
+                {grading.label}
+              </p>
+              <p className="mt-[3px] text-[11px] leading-[14px] text-text-secondary">{grading.detail}</p>
+            </>
           )}
           {signalLabel && (
-            <p className={cn('mt-[5px] text-[13px] font-bold leading-[18px]', getSectionSignalTone(percent))}>
+            <p className={cn('mt-[5px] text-[13px] font-bold leading-[18px]', getSectionSignalTone(percent, section?.signal))}>
               {signalLabel}
             </p>
           )}

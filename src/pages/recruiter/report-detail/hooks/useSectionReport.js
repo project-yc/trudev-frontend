@@ -1,8 +1,15 @@
 import { useEffect, useState } from 'react';
-import { getRankingSectionReport } from '../../../../api/recruiter/reports';
 
-/** Loads the ranking breakdown when its panel opens. */
-export function useRankingSectionReport(assessmentInstanceId, sectionId) {
+/**
+ * Loads one section's report slice when its panel opens.
+ *
+ * `fetcher` is any of the `get*SectionReport` functions in
+ * api/recruiter/reports.js — they share the signature
+ * `(assessmentInstanceId, sectionId, { signal })`. The result is tagged with
+ * the section it belongs to so `loading` is derived rather than reset in an
+ * effect — same pattern as useReportsTable.
+ */
+export function useSectionReport(fetcher, assessmentInstanceId, sectionId, fallbackMessage) {
   const [result, setResult] = useState({ sectionId: null, data: null });
   const [failure, setFailure] = useState({ sectionId: null, message: '' });
 
@@ -15,18 +22,18 @@ export function useRankingSectionReport(assessmentInstanceId, sectionId) {
     if (!ready) return undefined;
     const controller = new AbortController();
 
-    getRankingSectionReport(assessmentInstanceId, sectionId, { signal: controller.signal })
+    fetcher(assessmentInstanceId, sectionId, { signal: controller.signal })
       .then(payload => {
         if (controller.signal.aborted) return;
         setResult({ sectionId, data: payload?.data ?? payload });
       })
       .catch(err => {
         if (controller.signal.aborted) return;
-        setFailure({ sectionId, message: err?.message || 'Failed to load rankings.' });
+        setFailure({ sectionId, message: err?.message || fallbackMessage });
       });
 
     return () => controller.abort();
-  }, [assessmentInstanceId, sectionId, ready]);
+  }, [fetcher, assessmentInstanceId, sectionId, ready, fallbackMessage]);
 
   return { data: isCurrent ? result.data : null, loading, error };
 }

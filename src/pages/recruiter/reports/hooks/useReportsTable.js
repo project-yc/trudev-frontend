@@ -10,6 +10,7 @@ import {
   extractCandidates,
   filterCandidates,
   hasActiveReport,
+  orderByRankEligibility,
 } from '../utils/reportRows';
 
 const EMPTY_ROWS = [];
@@ -98,10 +99,15 @@ export function useReportsTable(assessmentId) {
 
   const metrics = useMemo(() => deriveReportMetrics(candidates), [candidates]);
 
+  // Rank-eligible candidates by score, then the unranked bucket. Ordered
+  // before pagination so rank positions are stable across pages.
   const filtered = useMemo(
-    () => filterCandidates(metrics.submitted, debouncedSearch),
+    () => orderByRankEligibility(filterCandidates(metrics.submitted, debouncedSearch)),
     [metrics.submitted, debouncedSearch],
   );
+
+  const unrankedStart = filtered.findIndex(row => !row.rankEligible);
+  const unrankedCount = unrankedStart === -1 ? 0 : filtered.length - unrankedStart;
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const requestedPage = pageState.assessmentId === assessmentId ? pageState.page : 1;
@@ -142,6 +148,8 @@ export function useReportsTable(assessmentId) {
     search,
     setSearch: handleSearchChange,
     totalCount: filtered.length,
+    unrankedStart,
+    unrankedCount,
     offset,
     page,
     setPage,

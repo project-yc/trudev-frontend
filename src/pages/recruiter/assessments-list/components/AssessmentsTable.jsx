@@ -128,6 +128,8 @@ export function AssessmentsTable({
   onEdit,
   onDuplicate,
   duplicatingId,
+  onClose,
+  closingId,
 }) {
   const isEmpty = !loading && rows.length === 0;
 
@@ -231,6 +233,8 @@ export function AssessmentsTable({
                         onEdit={onEdit}
                         onDuplicate={onDuplicate}
                         duplicating={duplicatingId === row.id}
+                        onClose={onClose}
+                        closing={closingId === row.id}
                       />
                     </div>
                   </TableCell>

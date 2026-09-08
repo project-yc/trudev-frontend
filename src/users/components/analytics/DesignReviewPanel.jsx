@@ -3,8 +3,12 @@ import { ChevronDown } from 'lucide-react';
 
 const BADGE_CLASS = {
   MET: 'bg-green-500/20 text-green-400 border border-green-500/30',
+  // A different-but-sound approach is full credit in scoring; it rendered as
+  // NOT_MET here because the badge map did not know the value.
+  ALTERNATIVE: 'bg-green-500/20 text-green-400 border border-green-500/30',
   PARTIALLY_MET: 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30',
   NOT_MET: 'bg-red-500/20 text-red-400 border border-red-500/30',
+  NOT_EVALUATED: 'bg-gray-500/20 text-gray-400 border border-gray-500/30',
 };
 
 const normalizeAssessment = (assessment) => {
@@ -12,7 +16,7 @@ const normalizeAssessment = (assessment) => {
     return 'NOT_MET';
   }
 
-  return BADGE_CLASS[assessment] ? assessment : 'NOT_MET';
+  return BADGE_CLASS[assessment] ? assessment : 'NOT_EVALUATED';
 };
 
 export default function DesignReviewPanel({ criteria }) {

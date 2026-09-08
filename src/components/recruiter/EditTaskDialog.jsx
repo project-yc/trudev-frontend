@@ -17,8 +17,7 @@ import { Badge } from '../ui/badge.jsx';
 import {
   Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
 } from '../ui/select.jsx';
-
-const LANGUAGES = ['Python', 'JavaScript', 'TypeScript', 'Java', 'Go', 'Rust', 'C++'];
+import { TASK_LANGUAGE_OPTIONS as LANGUAGES } from '../../constants/taskLanguages';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 

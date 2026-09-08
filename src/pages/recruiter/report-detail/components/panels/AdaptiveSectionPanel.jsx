@@ -8,14 +8,15 @@ import {
   TableHeader,
   TableRow,
 } from '../../../../../components/ui/table';
-import { PanelBlock } from '../SectionPanel';
-import { useAdaptiveSectionReport } from '../../hooks/useAdaptiveSectionReport';
+import { PanelBlock, PanelEmpty, PanelError } from '../SectionPanel';
+import { useSectionReport } from '../../hooks/useSectionReport';
+import { getAdaptiveSectionReport } from '../../../../../api/recruiter/reports';
 import {
   buildExchange,
   describeCaps,
   formatCompetencyLabel,
   formatDuration,
-  formatPercent,
+  formatRatioPercent,
   formatScoreValue,
   getRatioTone,
   joinRationales,
@@ -69,9 +70,9 @@ function CompetencyTiles({ competencies }) {
               <span className="text-[12px] font-medium text-text-muted">
                 /{formatScoreValue(competency.max_score)}
               </span>
-              {formatPercent(competency.score, competency.max_score) && (
+              {formatRatioPercent(competency.score, competency.max_score) && (
                 <span className="ml-[2px] text-[11px] font-medium text-text-faint">
-                  ({formatPercent(competency.score, competency.max_score)})
+                  ({formatRatioPercent(competency.score, competency.max_score)})
                 </span>
               )}
             </p>
@@ -411,9 +412,11 @@ function Transcript({ transcript, snapshotVersion }) {
 }
 
 export function AdaptiveSectionPanel({ section, report }) {
-  const { data, loading, error } = useAdaptiveSectionReport(
+  const { data, loading, error } = useSectionReport(
+    getAdaptiveSectionReport,
     report?.assessment_instance_id,
     section?.section_id,
+    'Failed to load interview results.',
   );
 
   if (loading) {
@@ -426,29 +429,13 @@ export function AdaptiveSectionPanel({ section, report }) {
     );
   }
 
-  if (error) {
-    return (
-      <PanelBlock>
-        <div className="rounded-[10px] border border-error-border bg-error-bg px-[12px] py-[9px]">
-          <p className="text-[12px] leading-[17px] text-error">{error}</p>
-        </div>
-      </PanelBlock>
-    );
-  }
+  if (error) return <PanelError>{error}</PanelError>;
 
   const competencies = data?.competencies || [];
   const transcript = data?.transcript || [];
 
-  // Returning null here rendered an empty drawer with nothing but a title, which
-  // reads as a broken panel rather than an absent interview.
   if (!data) {
-    return (
-      <PanelBlock>
-        <p className="text-[13px] leading-[20px] text-text-muted">
-          No interview data is available for this section.
-        </p>
-      </PanelBlock>
-    );
+    return <PanelEmpty>No interview data is available for this section.</PanelEmpty>;
   }
 
   // Runs scored before snapshots existed carry only a score and a summary.

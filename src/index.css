@@ -23,8 +23,10 @@
   /* Text */
   --color-text-primary:   #0F172A;
   --color-text-secondary: #64748B;
-  --color-text-muted:     #94A3B8;
-  --color-text-faint:     #CBD5E1;
+  /* Muted must still pass WCAG AA (4.5:1) at body size: Slate 400 (#94A3B8)
+     is 2.9:1 on white. Faint is decorative only — never body copy. */
+  --color-text-muted:     #64748B;
+  --color-text-faint:     #94A3B8;
 
   /* Brand accent — Ember Orange (overridden per-org at runtime) */
   --color-brand:           #FF8528;
@@ -106,8 +108,8 @@
 
   --color-text-primary:   #FBF6F3;
   --color-text-secondary: #B5ABA4;
-  --color-text-muted:     #8A7E77;
-  --color-text-faint:     #6B615B;
+  --color-text-muted:     #A69B93;
+  --color-text-faint:     #8A7E77;
 
   --color-brand:           #FF8528;
   --color-brand-hover:     #EB6F0F;

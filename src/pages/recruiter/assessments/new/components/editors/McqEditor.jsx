@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { IconCheckbox, IconPlus, IconTrash, IconCheck, IconArrowsShuffle, IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
 import { useAssessmentBuilder } from '../../context/AssessmentBuilderContext';
+import { useSectionItemEditor } from '../../context/useSectionItemEditor';
 import { QuestionFooter } from '../QuestionFooter';
 import { SectionConfigCard } from '../SectionConfigCard';
 import {
@@ -44,15 +45,8 @@ function OptionRow({ option, questionLocked, onToggle, onTextChange, onDelete })
 
 export function McqEditor({ sectionId, item, allItems, itemIndex }) {
   const { dispatch, ACTIONS, state } = useAssessmentBuilder();
+  const { updateItem } = useSectionItemEditor(sectionId, item.id);
   const section = state.sections.find(s => s.id === sectionId);
-
-  const updateItem = (updates) => {
-    dispatch({ type: ACTIONS.UPDATE_QUESTION, payload: { sectionId, questionId: item.id, updates } });
-  };
-
-  const updateSection = (updates) => {
-    dispatch({ type: ACTIONS.UPDATE_SECTION, payload: { sectionId, updates } });
-  };
 
   const handleOptionToggle = (optionId) => {
     const updated = item.options.map(o => ({

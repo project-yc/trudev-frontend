@@ -5,9 +5,6 @@ import {
   autosaveFreeTextRuntime,
   autosaveMcqRuntime,
   autosaveRankingRuntime,
-  buildCandidateCompletionRoute,
-  buildCandidateSectionRoute,
-  clearCandidateRuntimeState,
   getCandidateNextAction,
   getFreeTextRuntime,
   getMcqRuntime,
@@ -30,6 +27,7 @@ import {
 } from '../../components/candidate/CandidateSectionScaffold'
 import CandidateMcqSectionExperience from '../../components/candidate/CandidateMcqSectionExperience'
 import CandidateAdaptiveInterviewExperience from './adaptive-interview'
+import { handleCandidateNextAction } from './assessmentStartNavigation'
 
 const MAX_BOOT_WAIT_MS = 45000
 const BOOT_POLL_INTERVAL_MS = 1500
@@ -65,7 +63,7 @@ const clearSensitiveUrlParams = () => stripUrlParams(SENSITIVE_URL_PARAMS)
 
 // These drive the post-submit transition banner, so they are cleared only
 // after it has been shown.
-const TRANSITION_URL_PARAMS = ['submission_status', 'submitted_section_type']
+const TRANSITION_URL_PARAMS = ['submission_status', 'submitted_section_type', 'pause_status']
 const clearSubmissionTransitionParams = () => stripUrlParams(TRANSITION_URL_PARAMS)
 
 const getBootstrapRuntime = (locationState, searchParams, params) => {
@@ -93,6 +91,36 @@ const reorderRankingOptions = (options, rankedOptionIds) => {
   const ranked = rankedOptionIds.map((id) => byId.get(String(id))).filter(Boolean)
   const remaining = options.filter((option) => !rankedOptionIds.includes(String(option.id)))
   return [...ranked, ...remaining]
+}
+
+// Gateway mode: readiness is asked of the backend (authenticated), and the
+// hand-off is a top-level form POST so the token never appears in a URL and
+// the resulting cookie is HttpOnly.
+async function probeGatewayReady(entryUrl, token) {
+  try {
+    const response = await fetch(entryUrl.replace(/\/enter$/, '/ready'), {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${token}` },
+      cache: 'no-store',
+    })
+    return response.ok
+  } catch {
+    return false
+  }
+}
+
+function enterWorkspaceViaGateway(entryUrl, token) {
+  const form = document.createElement('form')
+  form.method = 'POST'
+  form.action = entryUrl
+  form.style.display = 'none'
+  const field = document.createElement('input')
+  field.type = 'hidden'
+  field.name = 'token'
+  field.value = token
+  form.appendChild(field)
+  document.body.appendChild(form)
+  form.submit()
 }
 
 async function probeWorkspaceReady(workspaceUrl) {
@@ -170,53 +198,36 @@ export default function CandidateSectionRuntimePage() {
     const [selectedOptionIds, setSelectedOptionIds] = useState([])
     const [freeTextValue, setFreeTextValue] = useState('')
     const [rankingOptions, setRankingOptions] = useState([])
+    // The IDE sends the candidate here after a cold pause; the workspace is
+    // gone and must be relaunched on Resume — not on landing, or the clock
+    // would restart before the candidate chose to continue.
+    const [pausedReturn, setPausedReturn] = useState(false)
 
     const handleNextAction = useCallback((actionPayload) => {
       if (!actionPayload?.next_action) {
         throw new Error('Backend did not return next_action')
       }
-
-      if (actionPayload.next_action === 'launch_coding') {
-        if (!actionPayload.section_id || !actionPayload.assessment_instance_id) {
-          throw new Error('Coding section response is missing section route metadata')
-        }
-        const nextRuntime = saveCandidateRuntimeState(actionPayload)
-        setRuntimeState(nextRuntime)
-        navigate(
-          actionPayload.frontend_route || buildCandidateSectionRoute(actionPayload.assessment_instance_id, actionPayload.section_id),
-          { replace: true, state: { runtime: nextRuntime } },
-        )
-        return
+      if (
+        actionPayload.next_action === 'launch_coding'
+        && (!actionPayload.section_id || !actionPayload.assessment_instance_id)
+      ) {
+        throw new Error('Coding section response is missing section route metadata')
       }
-
-      // Adaptive routes exactly like open_section — the difference is entirely in
-      // which experience the content_type dispatch renders.
-      if (actionPayload.next_action === 'open_section' || actionPayload.next_action === 'launch_adaptive_interview') {
-        const nextRuntime = saveCandidateRuntimeState(actionPayload)
-        setRuntimeState(nextRuntime)
-        navigate(
-          actionPayload.frontend_route || buildCandidateSectionRoute(actionPayload.assessment_instance_id, actionPayload.section_id),
-          { replace: true, state: { runtime: nextRuntime } },
-        )
-        return
+      // One dispatcher for every candidate page (assessmentStartNavigation.js).
+      // This page only adds: keep the runtime in local state before navigating,
+      // and treat an unknown action as an error rather than a silent no-op.
+      const handled = handleCandidateNextAction(actionPayload, {
+        navigate,
+        instanceId,
+        onSectionRuntime: setRuntimeState,
+        completionState: {
+          assessmentInstanceId: actionPayload.assessment_instance_id || instanceId,
+          sectionId: actionPayload.section_id || sectionId,
+        },
+      })
+      if (!handled) {
+        throw new Error(`Unsupported next_action: ${actionPayload.next_action}`)
       }
-
-      if (actionPayload.next_action === 'assessment_complete') {
-        clearCandidateRuntimeState()
-        navigate(
-          actionPayload.frontend_route || actionPayload.completion_route || buildCandidateCompletionRoute(actionPayload.assessment_instance_id || instanceId),
-          {
-            replace: true,
-            state: {
-              assessmentInstanceId: actionPayload.assessment_instance_id || instanceId,
-              sectionId: actionPayload.section_id || sectionId,
-            },
-          },
-        )
-        return
-      }
-
-      throw new Error(`Unsupported next_action: ${actionPayload.next_action}`)
     }, [instanceId, navigate, sectionId])
 
     useEffect(() => {
@@ -227,6 +238,7 @@ export default function CandidateSectionRuntimePage() {
           searchParams.get('submission_status') === 'submitted'
           && searchParams.get('submitted_section_type') === 'technical_task'
         )
+        const returningFromCodingPause = searchParams.get('pause_status') === 'paused'
 
         if (returningFromCodingSubmit) {
           setScreen('submitting')
@@ -240,7 +252,13 @@ export default function CandidateSectionRuntimePage() {
             throw new Error('Missing section token for candidate runtime')
           }
 
-          const needsRuntimeRefresh = (
+          if (returningFromCodingPause) {
+            // The old workspace URL points at a stopped container.
+            nextRuntime = { ...nextRuntime, workspaceUrl: null }
+            setPausedReturn(true)
+          }
+
+          const needsRuntimeRefresh = !returningFromCodingPause && (
             !nextRuntime.currentItemAttemptId
             || !nextRuntime.contentType
             || !nextRuntime.sectionName
@@ -260,6 +278,11 @@ export default function CandidateSectionRuntimePage() {
               handleNextAction(nextAction)
               return
             }
+            if (nextAction.paused) {
+              // Cold-paused: the backend described the session without
+              // relaunching it. Offer Resume; the clock stays stopped.
+              setPausedReturn(true)
+            }
             nextRuntime = saveCandidateRuntimeState(nextAction)
           } else {
             nextRuntime = saveCandidateRuntimeState(nextRuntime)
@@ -273,6 +296,8 @@ export default function CandidateSectionRuntimePage() {
           clearSensitiveUrlParams()
           if (returningFromCodingSubmit) {
             await delay(POST_SUBMIT_TRANSITION_MS)
+          }
+          if (returningFromCodingSubmit || returningFromCodingPause) {
             clearSubmissionTransitionParams()
           }
           setScreen('overview')
@@ -296,13 +321,27 @@ export default function CandidateSectionRuntimePage() {
         const bootStartedAt = Date.now()
         await delay(TOTAL_BOOT_MS)
 
+        const viaGateway = Boolean(runtimeState.workspaceEntryUrl && runtimeState.sectionToken)
         while (!cancelled) {
-          const isReady = await probeWorkspaceReady(runtimeState.workspaceUrl)
+          const isReady = viaGateway
+            ? await probeGatewayReady(runtimeState.workspaceEntryUrl, runtimeState.sectionToken)
+            : await probeWorkspaceReady(runtimeState.workspaceUrl)
           if (cancelled) {
             return
           }
-          if (isReady || (Date.now() - bootStartedAt) >= MAX_BOOT_WAIT_MS) {
-            window.location.href = runtimeState.workspaceUrl
+          if (isReady) {
+            if (viaGateway) {
+              enterWorkspaceViaGateway(runtimeState.workspaceEntryUrl, runtimeState.sectionToken)
+            } else {
+              window.location.href = runtimeState.workspaceUrl
+            }
+            return
+          }
+          if ((Date.now() - bootStartedAt) >= MAX_BOOT_WAIT_MS) {
+            // Entering anyway used to land the candidate on a raw nginx
+            // 502 when the container had died. Say so and let them retry.
+            setError('Your workspace did not start in time. Click Start Section to try again — your work is saved.')
+            setScreen('overview')
             return
           }
           await delay(BOOT_POLL_INTERVAL_MS)
@@ -314,7 +353,7 @@ export default function CandidateSectionRuntimePage() {
       return () => {
         cancelled = true
       }
-    }, [runtimeState?.workspaceUrl, screen])
+    }, [runtimeState?.workspaceUrl, runtimeState?.workspaceEntryUrl, runtimeState?.sectionToken, screen])
 
     const loadSectionContent = useCallback(async (nextRuntime) => {
       let payload = null
@@ -345,7 +384,22 @@ export default function CandidateSectionRuntimePage() {
 
       if (runtimeState.contentType === 'technical_task') {
         if (!runtimeState.workspaceUrl) {
-          setError('Workspace URL is missing for this coding section')
+          // Paused (cold) or the container died: ask the backend for the
+          // next action. For a paused session that call resumes the clock
+          // and relaunches the workspace from the pause snapshot.
+          try {
+            const nextAction = await getCandidateNextAction(instanceId, runtimeState.sectionToken, { resume: true })
+            if (nextAction.next_action !== 'launch_coding') {
+              handleNextAction(nextAction)
+              return
+            }
+            const nextRuntime = saveCandidateRuntimeState(nextAction)
+            setRuntimeState(nextRuntime)
+            setPausedReturn(false)
+            setScreen('booting')
+          } catch (resumeError) {
+            setError(resumeError.message || 'Could not relaunch the workspace')
+          }
           return
         }
         setScreen('booting')
@@ -360,7 +414,7 @@ export default function CandidateSectionRuntimePage() {
         setError(loadError.message || 'Failed to load section content')
         setScreen('overview')
       }
-    }, [loadSectionContent, runtimeState])
+    }, [handleNextAction, instanceId, loadSectionContent, runtimeState])
 
     const handleMcqToggle = (optionId, selectionMode) => {
       if (selectionMode === 'single') {
@@ -533,16 +587,21 @@ export default function CandidateSectionRuntimePage() {
           ...(runtimeState?.sectionTimerMinutes ? [`${runtimeState.sectionTimerMinutes} min`] : []),
         ]}
         tips={runtimeState?.contentType === 'technical_task'
-          ? [
-              'Click Start Section to begin the workspace boot sequence.',
-              'You will only be redirected once the workspace is reachable.',
-            ]
+          ? (pausedReturn
+            ? [
+                'Your session is paused and the clock is stopped. Your work was saved.',
+                'Click Resume Section to relaunch your workspace from the saved snapshot; the clock restarts then.',
+              ]
+            : [
+                'Click Start Section to begin the workspace boot sequence.',
+                'You will only be redirected once the workspace is reachable.',
+              ])
           : [
               'Click Start Section when you are ready to begin.',
               'The next section becomes available immediately after submission while grading continues in the background.',
             ]}
         error={error}
-        actionContent="Start Section"
+        actionContent={pausedReturn ? 'Resume Section' : 'Start Section'}
         onAction={beginSection}
       />
     )

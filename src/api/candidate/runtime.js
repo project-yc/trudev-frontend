@@ -19,7 +19,8 @@ export const requestCandidate = async (url, token, options = {}, { unwrapData = 
       ...(controller ? { signal: controller.signal } : {}),
       headers: {
         ...(options.headers || {}),
-        Authorization: `Bearer ${token}`,
+        // Public candidate endpoints (assessment-overview, start) pass no token.
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
     })
   } catch (err) {
@@ -82,6 +83,9 @@ export const normalizeCandidateRuntimeState = (payload = {}) => ({
   sessionToken: payload.session_token || payload.sessionToken || null,
   sessionId: payload.session_id || payload.sessionId || null,
   workspaceUrl: payload.workspace_url || payload.workspaceUrl || null,
+  // Gateway mode: POST the token here to obtain the IDE cookie (null when the
+  // browser goes straight to workspaceUrl).
+  workspaceEntryUrl: payload.workspace_entry_url || payload.workspaceEntryUrl || null,
   nextAction: payload.next_action || payload.nextAction || null,
   frontendRoute: payload.frontend_route || payload.frontendRoute || null,
   completionRoute: payload.completion_route || payload.completionRoute || null,
@@ -111,14 +115,17 @@ export const clearCandidateRuntimeState = () => {
   sessionStorage.removeItem(CANDIDATE_RUNTIME_STORAGE_KEY)
 }
 
-export const getCandidateNextAction = async (assessmentInstanceId, token) => (
+// `resume: true` only from the candidate's explicit Resume click. Landing on
+// or reloading the section page must describe a paused session, not restart
+// its clock (the backend relaunches only when asked).
+export const getCandidateNextAction = async (assessmentInstanceId, token, { resume = false } = {}) => (
   requestCandidate(
     `/api/v1/candidate/assessment/${assessmentInstanceId}/next-action`,
     token,
     {
       method: 'POST',
       headers: JSON_HEADERS,
-      body: JSON.stringify({}),
+      body: JSON.stringify(resume ? { resume: true } : {}),
     },
     { unwrapData: false },
   )

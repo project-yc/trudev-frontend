@@ -24,6 +24,7 @@ import { AskAnythingBar } from '../../components/recruiter/AskAnythingBar.jsx';
 import CreateTaskOverlay from '../../components/recruiter/CreateTaskOverlay.jsx';
 import EditTaskDialog from '../../components/recruiter/EditTaskDialog.jsx';
 import { buildLibraryTypeData } from '../../lib/libraryTypeData.js';
+import { TASK_LANGUAGE_OPTIONS } from '../../constants/taskLanguages';
 import {
   Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink,
   BreadcrumbPage, BreadcrumbSeparator,
@@ -32,13 +33,7 @@ import {
 // ─── constants ────────────────────────────────────────────────────────────────
 const LANGUAGE_OPTIONS = [
   { value: '', label: 'All' },
-  { value: 'Python', label: 'Python' },
-  { value: 'JavaScript', label: 'JavaScript' },
-  { value: 'TypeScript', label: 'TypeScript' },
-  { value: 'Java', label: 'Java' },
-  { value: 'Go', label: 'Go' },
-  { value: 'Rust', label: 'Rust' },
-  { value: 'C++', label: 'C++' },
+  ...TASK_LANGUAGE_OPTIONS.map(language => ({ value: language, label: language })),
 ];
 
 const CONTENT_TYPE_LABELS = {

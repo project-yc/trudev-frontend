@@ -1,7 +1,7 @@
 // Panel titles per section content type, matching the Figma panel headers
 // ("MCQ Details", "AI Adaptive Details", ...).
 
-export const SECTION_PANEL_TITLES = {
+const SECTION_PANEL_TITLES = {
   technical_task: 'Coding Details',
   coding: 'Coding Details',
   mcq: 'MCQ Details',

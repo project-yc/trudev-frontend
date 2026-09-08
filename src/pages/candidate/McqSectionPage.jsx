@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { buildCandidateCompletionRoute, buildCandidateSectionRoute, clearCandidateRuntimeState, saveCandidateRuntimeState } from '../../api/candidate/runtime'
+import { buildCandidateCompletionRoute, clearCandidateRuntimeState } from '../../api/candidate/runtime'
 import {
   clearMcqSession,
   loadMcqSession,
 } from '../../api/candidate/assessmentSession'
 import CandidateMcqSectionExperience from '../../components/candidate/CandidateMcqSectionExperience'
 import { CandidateCenteredErrorState } from '../../components/candidate/CandidateSectionScaffold'
+import { handleCandidateNextAction } from './assessmentStartNavigation'
 
 // ─── Main page component ──────────────────────────────────────────
 
@@ -30,29 +31,21 @@ export default function McqSectionPage() {
   }
 
   const handleSubmitResult = async (result) => {
-    if (result.next_action === 'assessment_complete') {
-      clearCandidateRuntimeState()
-      clearMcqSession()
-      navigate(result.frontend_route || buildCandidateCompletionRoute(result.assessment_instance_id || session.instanceId), {
-        replace: true,
-        state: {
-          candidateName: session.candidateName,
-          assessmentName: session.assessmentName,
-          assessmentInstanceId: result.assessment_instance_id || session.instanceId,
-          sectionId: result.section_id || section.section_id,
-        },
-      })
-      return
-    }
-
-    if (result.next_action === 'launch_coding' || result.next_action === 'open_section') {
-      const runtime = saveCandidateRuntimeState(result)
-      navigate(
-        result.frontend_route || buildCandidateSectionRoute(result.assessment_instance_id || session.instanceId, result.section_id),
-        { replace: true, state: { runtime } },
-      )
-      return
-    }
+    // Shared dispatcher — this used to be a local copy that knew only
+    // `launch_coding` / `open_section`, so an adaptive interview following an
+    // MCQ section fell through to the completion page below.
+    const handled = handleCandidateNextAction(result, {
+      navigate,
+      instanceId: session.instanceId,
+      onComplete: clearMcqSession,
+      completionState: {
+        candidateName: session.candidateName,
+        assessmentName: session.assessmentName,
+        assessmentInstanceId: result.assessment_instance_id || session.instanceId,
+        sectionId: result.section_id || section.section_id,
+      },
+    })
+    if (handled) return
 
     clearCandidateRuntimeState()
     clearMcqSession()

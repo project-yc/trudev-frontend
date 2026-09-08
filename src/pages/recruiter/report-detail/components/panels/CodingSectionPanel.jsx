@@ -10,8 +10,9 @@ import {
   TableHeader,
   TableRow,
 } from '../../../../../components/ui/table';
-import { PanelBlock } from '../SectionPanel';
+import { PanelBlock, PanelError } from '../SectionPanel';
 import { ScoreGauge } from '../ScoreGauge';
+import { formatAiLevel } from '../../../../../constants/aiLevels';
 import {
   DIMENSION_ORDER,
   formatDuration,
@@ -23,9 +24,53 @@ import {
   humanizeReason,
   isLowConfidenceEpisode,
   needsHumanReview,
+  reviewStatusLabel,
   selectCodingReport,
   sortTimeline,
 } from '../../utils/codingReport';
+
+// Why a dimension was left out of the score — the backend's reason codes in
+// recruiter words. Everything used to collapse into one generic sentence.
+const NOT_EVALUATED_REASONS = {
+  ai_not_used: 'The candidate had AI available and did not use it — a legitimate choice, not missing evidence.',
+  ai_disabled: 'AI was disabled for this section.',
+  insufficient_evidence: 'Too little activity was captured to evaluate this dimension.',
+  ai_review_failed: 'The AI review did not complete; this dimension has no evaluator note.',
+};
+
+/**
+ * How the composite was built, and what it can be compared with. Names the
+ * AI level the weighting used and every dimension left out (with the
+ * backend's reason), so "72" at `none` is never read against "72" at `full`.
+ */
+function ComparabilityNote({ coding }) {
+  const excluded = DIMENSION_ORDER
+    .map(([key, label]) => [label, coding.dimensions?.[key]])
+    .filter(([, dimension]) => dimension && dimension.evaluated === false)
+    .map(([label, dimension]) => {
+      const reason = NOT_EVALUATED_REASONS[dimension.reason] || dimension.summary || humanizeReason(dimension.reason || 'not evaluated');
+      return `${label} (${reason.replace(/\.$/, '')})`;
+    });
+  const level = coding.aiAccessLevel ? formatAiLevel(coding.aiAccessLevel) : null;
+
+  return (
+    <div className="mt-[10px] space-y-[4px] text-[11px] leading-[15px] text-text-secondary">
+      <p>
+        Average of the rubric dimensions below
+        {level ? <>, weighted for the <span className="font-semibold text-text-primary">{level}</span> AI access level</> : ', weighted by AI access level'}
+        . Comparable only with candidates who worked at the same level.
+      </p>
+      {excluded.length > 0 && (
+        <p>
+          <span className="font-semibold text-text-primary">Excluded from the composite:</span> {excluded.join('; ')}.
+        </p>
+      )}
+      <p>
+        The section card shows points earned out of points available, which is a different measure.
+      </p>
+    </div>
+  );
+}
 
 function StatLine({ label, value }) {
   if (value === null || value === undefined || value === '') return null;
@@ -134,7 +179,9 @@ function RubricTable({ dimensions }) {
                   )}
                 </TableCell>
                 <TableCell className="h-auto px-[12px] py-[11px] text-[12px] leading-[17px] text-text-secondary">
-                  {notEvaluated ? 'Not evaluated for this session.' : dimension.summary || '—'}
+                  {notEvaluated
+                    ? (NOT_EVALUATED_REASONS[dimension?.reason] || dimension?.summary || 'Not evaluated for this session.')
+                    : dimension.summary || '—'}
                 </TableCell>
               </TableRow>
             );
@@ -156,7 +203,7 @@ function ActivityTimeline({ timeline }) {
         type="button"
         onClick={() => setOpen(value => !value)}
         aria-expanded={open}
-        className="flex items-center gap-[6px] text-[14px] font-medium text-brand transition-colors hover:text-brand-hover"
+        className="flex items-center gap-[6px] text-[14px] font-medium text-brand-deep transition-colors hover:text-brand-navy"
       >
         {open ? 'Hide activity timeline' : 'Show activity timeline'}
         <ChevronDown className={cn('h-[15px] w-[15px] transition-transform', open && 'rotate-180')} strokeWidth={2} />
@@ -268,37 +315,43 @@ export function CodingSectionPanel({ report }) {
       </PanelBlock>
 
       {coding.aiReviewError && (
-        <PanelBlock>
-          <div className="rounded-[10px] border border-error-border bg-error-bg px-[12px] py-[9px]">
-            <p className="text-[12px] leading-[17px] text-error">
-              AI review did not complete — dimension scores may be partial.
-            </p>
-          </div>
-        </PanelBlock>
+        <PanelError>AI review did not complete — dimension scores may be partial.</PanelError>
       )}
 
       <PanelBlock title="Coding section score">
         <div className="flex flex-col items-center gap-[18px] sm:flex-row sm:items-center">
           <ScoreGauge value={coding.score} caption="Weighted rubric average" />
           <div className="min-w-0 flex-1">
-            <StatLine label="Independent authorship" value={authorship} />
+            {/* The AI level the candidate worked at. The score is weighted by
+                this (full = AI collaboration full weight, chat_only/chat_guided
+                half, inline/none excluded), so it is the first thing needed to
+                read the number. */}
+            <StatLine
+              label="AI level"
+              value={coding.aiAccessLevel ? formatAiLevel(coding.aiAccessLevel) : null}
+            />
             <StatLine
               label="Coding tasks in this assessment"
               value={coding.sessionCount || null}
             />
             <StatLine
               label="Review status"
-              value={needsHumanReview(coding.reviewPolicy) ? 'Needs review' : 'Clear'}
+              value={reviewStatusLabel(coding.reviewPolicy)}
             />
+            {coding.reviewPolicy && coding.reviewPolicy.rank_eligible === false && (
+              <StatLine label="Rank eligible" value="No" />
+            )}
+            {/* Independent authorship is a soft signal, not a headline: the
+                figure counts typed vs AI-authored characters and is unreliable
+                (see the audit), and delegating implementation is legitimate in
+                an AI-enabled assessment. Kept, but below the decision context. */}
+            <StatLine label="Independent authorship (context only)" value={authorship} />
           </div>
         </div>
         {/* The card on the page behind this drawer shows points earned out of
             points available; this gauge is the rubric average. They are
             different quantities and used to differ with no explanation. */}
-        <p className="mt-[10px] text-[11px] leading-[15px] text-text-muted">
-          Average of the rubric dimensions below, weighted by AI access level. The section
-          card shows points earned out of points available, which is a different measure.
-        </p>
+        <ComparabilityNote coding={coding} />
       </PanelBlock>
 
       {hasDimensions && (
@@ -404,7 +457,7 @@ export function CodingSectionPanel({ report }) {
                 key={`probe-${index}`}
                 className="rounded-[10px] border border-border-subtle bg-surface px-[12px] py-[10px]"
               >
-                <p className="text-[11px] font-bold text-brand">Q{index + 1}</p>
+                <p className="text-[11px] font-bold text-brand-deep">Q{index + 1}</p>
                 <p className="mt-[3px] text-[12px] leading-[18px] text-text-secondary">{probe}</p>
               </li>
             ))}

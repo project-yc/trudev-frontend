@@ -27,8 +27,26 @@ function formatSubscoreLabel(key) {
   return SUBSCORE_LABELS[key] || key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-export default function SignalCard({ title, signal, score, summary, subscores }) {
-  const normalizedSignal = SIGNAL_SCORE_MAPPING[signal] ? signal : 'red';
+export default function SignalCard({ title, signal, score, summary, subscores, evaluated = true }) {
+  // A dimension that was not evaluated is not a bad one. The unknown-signal
+  // fallback used to be red "Needs Work 2/5" — shown to every candidate at
+  // `none`/`inline_completions`, every short session and every degraded report.
+  if (evaluated === false || signal === 'not_evaluated' || signal == null) {
+    return (
+      <article className="rounded-xl border border-[#1e2130] bg-[#13151f] p-5">
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-sm font-medium text-gray-300">{title || 'Signal'}</h3>
+          <span className="h-2 w-2 rounded-full bg-gray-600" />
+        </div>
+        <p className="mb-2 text-sm font-semibold text-gray-400">Not evaluated</p>
+        <p className="mb-4 min-h-10 text-sm text-gray-400">{summary || 'This dimension was not part of the score for this session.'}</p>
+        <div className="flex items-end gap-1 text-white">
+          <span className="text-4xl font-bold text-gray-500">—</span>
+        </div>
+      </article>
+    );
+  }
+  const normalizedSignal = SIGNAL_SCORE_MAPPING[signal] ? signal : 'yellow';
   const scoreData = SIGNAL_SCORE_MAPPING[normalizedSignal];
   const subscoreEntries = subscores && typeof subscores === 'object'
     ? Object.entries(subscores).filter(([, v]) => typeof v === 'number')

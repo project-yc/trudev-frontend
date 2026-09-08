@@ -17,9 +17,11 @@ export const SHORTLISTED_STAGES = ['shortlisted', 'sent_to_hm'];
  * the <col> so the layout stays fixed regardless of content length.
  */
 export const REPORT_COLUMNS = [
-  { key: 'index', label: '#', width: 45 },
+  // 96px, not the Figma 45: the rank cell now also carries the "Unranked"
+  // pill, which the narrow column clipped. Taken from the assessment column.
+  { key: 'index', label: '#', width: 96 },
   { key: 'identity', label: 'Identity', width: 247 },
-  { key: 'assessment', label: 'Assessment', width: 329 },
+  { key: 'assessment', label: 'Assessment', width: 278 },
   { key: 'submitted', label: 'Submission Date', width: 138 },
   { key: 'score', label: 'Score', width: 113 },
   { key: 'status', label: 'Report status', width: 113 },

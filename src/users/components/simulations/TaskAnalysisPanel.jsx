@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import userApi from '../../services/api';
 import { queueSessionAnalyticsReport } from '../../../api/ai-report/report';
 import { startUserSimulation } from '../../services/dashboardService';
+import { unwrapData } from '../../services/unwrap';
 
 const MONO_STYLE = { fontFamily: '"JetBrains Mono", monospace' };
 
@@ -166,7 +167,7 @@ export default function TaskAnalysisPanel({ taskId, simId, onClose }) {
 
     try {
       const response = await userApi.get(`/api/v1/public/assessments/${simId}/tasks/${taskId}`);
-      const payload = response.data?.data || null;
+      const payload = unwrapData(response) || null;
       setTask(payload);
       setSessionId(payload?.latest_session_id || '');
       setReportStatus(payload?.report_status || '');

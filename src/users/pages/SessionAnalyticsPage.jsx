@@ -11,21 +11,30 @@ import AICollaborationPanel from '../components/analytics/AICollaborationPanel';
 import DebuggingTimeline from '../components/analytics/DebuggingTimeline';
 import GrowthEdgeCard from '../components/analytics/GrowthEdgeCard';
 import { getSessionAnalyticsReport, queueSessionAnalyticsReport } from '../../api/ai-report/report';
+import { CODING_DIMENSION_KEYS } from '../../constants/codingDimensions';
+import { stripCitationsDeep } from '../utils/candidateText';
 
-const SIGNAL_CARD_CONFIG = [
-  { title: 'Task Execution', key: 'task_completion' },
-  { title: 'Design Quality', key: 'design_quality' },
-  { title: 'Process Discipline', key: 'problem_solving_process' },
-  { title: 'AI Collaboration', key: 'ai_collaboration' },
-];
+// Candidate-facing wording for the shared dimension keys.
+const SIGNAL_CARD_TITLES = {
+  task_completion: 'Task Execution',
+  design_quality: 'Design Quality',
+  problem_solving_process: 'Process Discipline',
+  ai_collaboration: 'AI Collaboration',
+};
+
+const SIGNAL_CARD_CONFIG = CODING_DIMENSION_KEYS.map(key => ({ key, title: SIGNAL_CARD_TITLES[key] }));
 
 export default function SessionAnalyticsPage() {
   const { sessionId } = useParams();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
-  const [report, setReport] = useState(null);
+  const [rawReport, setReport] = useState(null);
   const [queueing, setQueueing] = useState(false);
+
+  // Evidence citations (`[EP01]`, `[AI01]`, `[CODE_DIFF]`) are recruiter-panel
+  // anchors; the candidate has nothing to resolve them against.
+  const report = useMemo(() => stripCitationsDeep(rawReport), [rawReport]);
   const [queueError, setQueueError] = useState('');
 
   const dateLabel = useMemo(
@@ -72,6 +81,12 @@ export default function SessionAnalyticsPage() {
   const reportNotRequested = reportStatus === 'not_requested';
   const reportPending = reportStatus === 'pending' || reportStatus === 'processing';
   const reportFailed = reportStatus === 'failed';
+  const reportCompleted = reportStatus === 'completed';
+  // Anything else — an empty body, an unknown status, a payload without a
+  // `status` — must still render something. This page used to return an empty
+  // <main> whenever the API layer handed it `null`.
+  const reportUnavailable = !loading && !error
+    && !reportNotRequested && !reportPending && !reportFailed && !reportCompleted;
 
   const handleQueueReport = useCallback(async () => {
     if (!sessionId) {
@@ -114,6 +129,7 @@ export default function SessionAnalyticsPage() {
       score: cardData?.score,
       summary: cardData?.summary,
       subscores: cardData?.subscores,
+      evaluated: cardData?.evaluated,
     };
   });
 
@@ -266,6 +282,31 @@ export default function SessionAnalyticsPage() {
           </div>
         )}
 
+        {reportUnavailable && (
+          <div
+            role="status"
+            className="mx-auto max-w-3xl rounded-xl border border-[#2a2d3a] bg-[#13151f] p-5 text-sm text-gray-300"
+          >
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="mt-0.5 h-4 w-4 text-gray-400" />
+              <div>
+                <p className="font-semibold text-white">Report not available</p>
+                <p className="mt-1 text-gray-400">
+                  {report?.detail
+                    || 'No analytics report was returned for this session. If you just finished, give it a moment and try again.'}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => fetchReport()}
+                  className="mt-3 rounded-md border border-[#2f3e65] bg-[#0b1223] px-3 py-1.5 text-xs text-[#b8c6e9] transition hover:border-cyan-400 hover:text-white"
+                >
+                  Try again
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {!loading && !error && reportFailed && (
           <div className="mx-auto max-w-3xl rounded-xl border border-[#4b1f2d] bg-[#1a1117] p-5 text-sm text-red-300">
             <div className="flex items-start gap-2">
@@ -291,7 +332,7 @@ export default function SessionAnalyticsPage() {
           </div>
         )}
 
-        {!loading && !error && reportStatus === 'completed' && (
+        {!loading && !error && reportCompleted && (
           <div className="space-y-4">
             <div className="mb-6 flex items-center justify-between">
               <h1 className="text-3xl font-semibold text-white">Session Analytics</h1>
@@ -312,6 +353,7 @@ export default function SessionAnalyticsPage() {
                   score={card.score}
                   summary={card.summary}
                   subscores={card.subscores}
+                  evaluated={card.evaluated}
                 />
               ))}
             </section>

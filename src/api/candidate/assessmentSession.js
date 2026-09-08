@@ -8,39 +8,17 @@
  *   POST /api/v1/candidate/sections/:id/submit-all — batch section submit
  */
 
+import { requestCandidate } from './runtime'
+
 const JSON_HEADERS = { 'Content-Type': 'application/json' }
 
-const parseJson = async (res) => {
-  try {
-    return await res.json()
-  } catch {
-    return {}
-  }
-}
+// Same transport as every other candidate call (runtime.js, adaptiveInterview.js):
+// JSON-parses the body, unwraps the ApiResponse envelope, and throws an Error
+// carrying `status` / `code` / `data` on a non-2xx. The public endpoints pass no
+// token, so no Authorization header is sent for them.
+const request = (url, options = {}) => requestCandidate(url, null, options)
 
-const request = async (url, options = {}) => {
-  const res = await fetch(url, { ...options })
-  const body = await parseJson(res)
-  if (!res.ok) {
-    throw new Error(body.detail || body.message || `Request failed (${res.status})`)
-  }
-  return body?.data ?? body
-}
-
-const requestWithToken = async (url, token, options = {}) => {
-  const res = await fetch(url, {
-    ...options,
-    headers: {
-      ...(options.headers || {}),
-      Authorization: `Bearer ${token}`,
-    },
-  })
-  const body = await parseJson(res)
-  if (!res.ok) {
-    throw new Error(body.detail || body.message || `Request failed (${res.status})`)
-  }
-  return body?.data ?? body
-}
+const requestWithToken = (url, token, options = {}) => requestCandidate(url, token, options)
 
 // ─── API functions ────────────────────────────────────────────────
 

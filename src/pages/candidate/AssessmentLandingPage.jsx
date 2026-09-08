@@ -20,16 +20,8 @@ import {
   CandidatePageShell,
   CandidatePrimaryButton,
 } from '../../components/candidate/CandidateSectionScaffold'
-
-// Keys are AILevel.choices() on the backend. `chat` was never one of them —
-// it came from a stale docstring on the overview endpoint — so a section
-// configured as chat_only rendered the raw string to the candidate.
-const AI_LEVEL_LABELS = {
-  full: 'Full AI access',
-  chat_only: 'AI chat only',
-  inline_completions: 'Inline completions only',
-  none: 'No AI assistance',
-}
+import { CANDIDATE_AI_LEVEL_LABELS, formatAiLevel } from '../../constants/aiLevels'
+import { buildAssessmentTermsRoute } from '../../routes/candidateRoutes'
 
 const UNKNOWN_SECTION_CONFIG = {
   label: 'Section',
@@ -85,7 +77,7 @@ export default function AssessmentLandingPage() {
   }, [token])
 
   const handleStart = () => {
-    navigate(`/assessment/${token}/terms`, { state: { overview } })
+    navigate(buildAssessmentTermsRoute(token), { state: { overview } })
   }
 
   if (loading) {
@@ -98,6 +90,9 @@ export default function AssessmentLandingPage() {
 
   const sections = overview.sections || []
   const totalMins = overview.total_duration_minutes
+  const instanceStatus = String(overview.instance_status || '').toUpperCase()
+  const alreadySubmitted = instanceStatus === 'SUBMITTED'
+  const expired = instanceStatus === 'EXPIRED'
 
   return (
     <CandidatePageShell>
@@ -128,7 +123,7 @@ export default function AssessmentLandingPage() {
           {overview.ai_level && (
             <span className="inline-flex items-center gap-1.5 text-xs text-text-secondary bg-surface-muted border border-border-default px-2.5 py-1 rounded-full">
               <IconBrain size={12} />
-              {AI_LEVEL_LABELS[overview.ai_level] || overview.ai_level}
+              {formatAiLevel(overview.ai_level, CANDIDATE_AI_LEVEL_LABELS)}
             </span>
           )}
         </div>
@@ -186,7 +181,7 @@ export default function AssessmentLandingPage() {
           <ul className="space-y-2">
             {[
               'Ensure a stable internet connection',
-              'Each section is timed — you cannot pause once started',
+              'Each section is timed — the coding IDE has a Pause button that stops the clock, but the section timer continues for other section types',
               'Your answers are saved when you submit each section',
             ].map((tip) => (
               <li key={tip} className="flex items-start gap-2.5 text-text-secondary text-sm">
@@ -199,10 +194,20 @@ export default function AssessmentLandingPage() {
 
       {error ? <CandidateErrorBanner>{error}</CandidateErrorBanner> : null}
 
+      {alreadySubmitted ? (
+        <p className="text-text-primary text-sm text-center">
+          You have already submitted this assessment. Nothing further is needed from you.
+        </p>
+      ) : expired ? (
+        <p className="text-text-primary text-sm text-center">
+          This assessment has expired. Contact the hiring team if you believe this is a mistake.
+        </p>
+      ) : (
       <CandidatePrimaryButton onClick={handleStart}>
         Begin Assessment
         <IconChevronRight size={16} />
       </CandidatePrimaryButton>
+      )}
 
     </CandidatePageShell>
   )

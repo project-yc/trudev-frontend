@@ -1,4 +1,7 @@
 import { formatCompetencyLabel } from '../../../../../../utils/competencyLabels';
+import { CODING_DIMENSION_KEYS } from '../../../../../../constants/codingDimensions';
+import { TASK_LANGUAGE_OPTIONS } from '../../../../../../constants/taskLanguages';
+import { ADAPTIVE_DEFAULT_TIMER } from '../../constants/sectionTypeConfig';
 import adaptiveCard from '../../../../../../assets/recruiter/images/adaptive__card.svg';
 import codingIcon from '../../../../../../assets/recruiter/icons/coding.svg';
 import freeTextIcon from '../../../../../../assets/recruiter/icons/free_text.svg';
@@ -16,55 +19,41 @@ export const ADAPTIVE_CARD_IMAGE = adaptiveCard;
 
 export const TIMER_OPTIONS = [15, 30, 45, 60, 90];
 
-// The section timer a drawer opens on. Coding keeps a longer default because a
-// technical task is a build-and-submit exercise, not a handful of questions —
-// 15 minutes is not a task anyone can finish. Every other type opens on the
-// shortest option so the recruiter deliberately lengthens a section rather than
-// silently spending three quarters of the assessment budget on the first one
-// they add.
-export const DEFAULT_SECTION_TIMER = 15;
-export const DEFAULT_CODING_SECTION_TIMER = 45;
+// Default section timers (DEFAULT_SECTION_TIMER, DEFAULT_CODING_SECTION_TIMER,
+// ADAPTIVE_DEFAULT_TIMER) live in ../../constants/sectionTypeConfig so the
+// drawer creates a section with the same number the outline displays for it.
 
 export const POINT_OPTIONS = [5, 10, 15, 20];
-// Values must match backend AILevel (assessments/constants.py). This used to
-// send 'chat', which the serializer rejects and which analytics would have
-// silently weighted as full access.
-export const AI_LEVEL_OPTIONS = [
-  { value: 'chat_only', label: 'Chat only' },
-  { value: 'full', label: 'Full agent' },
-  { value: 'inline_completions', label: 'Inline completions only' },
-  { value: 'none', label: 'Disabled' },
-];
+// AI level options live in src/constants/aiLevels.js (shared with the report,
+// the detail screen and the admin page).
 
 /**
- * Recruiter-weightable rubric dimensions.
+ * Recruiter-weightable rubric dimensions, in the shared display order.
  *
- * Keys match SessionReport's dimension fields — the weights are applied in
- * compute_overall_score, so a label change here without a key change is safe
- * but a key change is not.
+ * Keys are CODING_DIMENSION_KEYS — they match SessionReport's dimension fields
+ * and the weights are applied in compute_overall_score, so a label change here
+ * without a key change is safe but a key change is not.
  */
-export const CODING_RUBRIC_DIMENSIONS = [
-  {
-    key: 'problem_solving_process',
+const CODING_RUBRIC_COPY = {
+  problem_solving_process: {
     label: 'Problem solving process',
     hint: 'How they worked through the problem — where they started, what they tried when stuck, how they checked their own work.',
   },
-  {
-    key: 'task_completion',
+  task_completion: {
     label: 'Task Completion',
     hint: 'How much of what the task asked for actually works when the tests run.',
   },
-  {
-    key: 'ai_collaboration',
+  ai_collaboration: {
     label: 'AI Collaboration',
     hint: 'How well they directed the AI assistant and judged what it gave back. Automatically ignored when the section gives them no AI access.',
   },
-  {
-    key: 'design_quality',
+  design_quality: {
     label: 'Design Quality',
     hint: 'How the code is put together — naming, structure, and whether the next person could work in it.',
   },
-];
+};
+
+export const CODING_RUBRIC_DIMENSIONS = CODING_DIMENSION_KEYS.map(key => ({ key, ...CODING_RUBRIC_COPY[key] }));
 
 // The weights are a RELATIVE weighted average, not a multiplier on the score
 // (SessionReport.compute_overall_score divides by the sum of the weights it
@@ -80,7 +69,7 @@ export const RUBRIC_WEIGHT_HELP = 'These are relative, not multipliers: what cou
 // on. Without an explicit entry there was no way BACK to unfiltered once a role
 // had been chosen.
 export const FILTER_ROLES = ['', 'Front-end developer', 'QA engineer', 'Back-end developer', 'Data engineer', 'Full-stack developer'];
-export const LANGUAGE_OPTIONS = ['', 'Python', 'JavaScript', 'Ruby', 'C++', 'Go', 'Java'];
+export const LANGUAGE_OPTIONS = ['', ...TASK_LANGUAGE_OPTIONS];
 
 // 'any' sends no `difficulty` at all. The fourth option used to be 'adaptive',
 // which is not a difficulty the library stores — it was silently translated to
@@ -177,14 +166,11 @@ export const ROLE_FOCUS_AREAS = {
 };
 
 export const ADAPTIVE_TIMER_OPTIONS = [10, 15, 20, 30, 45];
-// 15, matching DEFAULT_SECTION_TIMER — the interview's Duration control is this
-// section's timer, so it opens on the same default every other drawer does.
-export const ADAPTIVE_DEFAULT_TIMER = 15;
 
 // Roughly three minutes per question — an answer plus the model's turn. The
 // engine terminates on the question budget, not the clock, so this only sets
 // the budget; the timer is the hard stop.
-export const MINUTES_PER_QUESTION = 3;
+const MINUTES_PER_QUESTION = 3;
 export const MAX_QUESTIONS_PER_COMPETENCY = 2;
 
 // Total-character caps for the two free-text adaptive fields, derived from what
@@ -194,7 +180,7 @@ export const MAX_QUESTIONS_PER_COMPETENCY = 2;
 // per-line length natively.
 export const ADAPTIVE_MUST_ASK_MAX_TOTAL = 10 * 500;
 export const ADAPTIVE_AVOID_TOPICS_MAX_TOTAL = 20 * 120;
-export const ADAPTIVE_QUESTION_CEILING = 12;
+const ADAPTIVE_QUESTION_CEILING = 12;
 
 // Delegates to the shared formatter so a competency reads identically on the
 // authoring chip and on the report. This used to title-case every word, which
@@ -226,7 +212,7 @@ export const formatFocusAreaLabel = formatCompetencyLabel;
 //
 // Checked in for the same reason ROLE_FOCUS_AREAS is — no API reports it. Drop
 // it for the response the moment /recruiter/adaptive/focus-areas does.
-export const ADAPTIVE_UNSUPPORTED_SENIORITIES = ['senior', 'staff', 'principal'];
+const ADAPTIVE_UNSUPPORTED_SENIORITIES = ['senior', 'staff', 'principal'];
 
 /**
  * The assessment's seniority, freshest source first.

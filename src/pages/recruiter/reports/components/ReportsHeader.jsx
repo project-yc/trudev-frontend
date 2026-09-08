@@ -14,7 +14,7 @@ export function ReportsHeader({ assessments, selectedId, onSelect, loading }) {
       <div className="min-w-0">
         <h1 className="text-[20px] font-bold leading-[24px] text-text-primary">Reports</h1>
         <p className="mt-[5px] text-[15px] leading-[17px] text-text-secondary">
-          Candidate assessment reports — scored and ranked by performance.
+          Candidate assessment reports — evidence and overall signal, not a verdict.
         </p>
       </div>
 

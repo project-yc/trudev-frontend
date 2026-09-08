@@ -13,7 +13,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { SECTION_TYPE_CONFIG } from '../../constants/sectionTypeConfig';
+import { SECTION_TYPE_CONFIG, getPointValue } from '../../constants/sectionTypeConfig';
 import { useAssessmentBuilder } from '../../context/AssessmentBuilderContext';
 import mcqIcon from '../../../../../../assets/recruiter/icons/mcq.svg';
 import rankingIcon from '../../../../../../assets/recruiter/icons/ranking.svg';
@@ -27,11 +27,6 @@ const TYPE_ICON = {
   free_text: freeTextIcon,
   coding: codingIcon,
 };
-
-function getPointValue(item) {
-  if (Number.isFinite(Number(item.points))) return Number(item.points);
-  return item.type === 'coding' ? 5 : 0;
-}
 
 function pluralize(count, singular) {
   return `${count} ${singular}${count === 1 ? '' : 's'}`;

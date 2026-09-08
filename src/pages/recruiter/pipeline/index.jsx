@@ -10,6 +10,8 @@ import {
 } from 'lucide-react';
 
 import { getPipeline, updatePipelineCandidate } from '../../../api/recruiter/pipeline.jsx';
+import { isUngradedReviewStatus, reviewStatusLabel } from '../../../api/recruiter/reports';
+import { AI_LEVEL_SHORT_LABELS, formatAiLevel } from '../../../constants/aiLevels';
 import { AskAnythingBar } from '../../../components/recruiter/AskAnythingBar';
 import { Button } from '../../../components/ui/button.jsx';
 import {
@@ -118,8 +120,37 @@ function formatDate(value) {
 
 function formatScore(card) {
   const rawScore = card?.fit_score ?? card?.score ?? card?.overall_score;
-  if (rawScore === null || rawScore === undefined || Number.isNaN(Number(rawScore))) return '--/100';
+  if (rawScore === null || rawScore === undefined || rawScore === '' || Number.isNaN(Number(rawScore))) return '--/100';
   return `${String(Math.round(Number(rawScore))).padStart(2, '0')}/100`;
+}
+
+/**
+ * Score cell. The backend marks candidates whose score is not comparable
+ * (`rank_eligible: false` + a `review_status`); those show the reason instead
+ * of a number, and any scored row carries the AI level it was earned under.
+ * Rows from an older backend have neither field and render as before.
+ */
+function ScoreCell({ card }) {
+  if (card?.rank_eligible === false) {
+    return (
+      <span
+        title={reviewStatusLabel(card?.review_status)}
+        className="inline-flex h-[24px] items-center whitespace-nowrap rounded-full border border-dashed border-border-strong bg-surface-muted px-2 text-[10px] font-semibold uppercase tracking-wide text-text-secondary"
+      >
+        {isUngradedReviewStatus(card?.review_status) ? reviewStatusLabel(card?.review_status) : 'Unranked'}
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex flex-wrap items-baseline gap-x-1">
+      <span>{formatScore(card)}</span>
+      {card?.ai_access_level && (
+        <span className="text-[11px] text-text-secondary" title={`AI access level: ${formatAiLevel(card.ai_access_level)}`}>
+          · AI: {formatAiLevel(card.ai_access_level, AI_LEVEL_SHORT_LABELS)}
+        </span>
+      )}
+    </span>
+  );
 }
 
 function reportIsReady(card) {
@@ -259,7 +290,7 @@ function PipelineTable({
                   <td className="px-[10px] align-middle">
                     <StageSelect card={card} onChange={onStageChange} />
                   </td>
-                  <td className="px-[10px] align-middle text-[14px] text-text-primary">{formatScore(card)}</td>
+                  <td className="px-[10px] align-middle text-[14px] text-text-primary"><ScoreCell card={card} /></td>
                   <td className="px-[10px] align-middle">
                     {reportIsReady(card) ? (
                       <Button
