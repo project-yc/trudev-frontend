@@ -12,8 +12,9 @@ import { formatAiLevel } from '../../constants/aiLevels';
 import { SectionPanel } from './report-detail/components/SectionPanel';
 import { SectionCard } from './report-detail/components/SectionCard';
 import { SectionPanelContent } from './report-detail/components/panels';
-import { getSectionPanelTitle } from './report-detail/constants/sectionPanels';
+import { getSectionPanelTitle, CODING_CONTENT_TYPES } from './report-detail/constants/sectionPanels';
 import { SIGNAL_LABELS } from './report-detail/constants/sectionCards';
+import { selectHiddenTestResult } from './report-detail/utils/codingReport';
 import { scoreBand } from './report-detail/utils/reportFormat';
 import {
   GRADING_STATE,
@@ -172,6 +173,11 @@ function HeroScore({ grading }) {
 function ScoreOverview({ report, sections, grading }) {
   const name = getCandidateName(report);
   const email = getCandidateEmail(report);
+  // Hidden-test pass count for the coding section, shown next to its score so
+  // "completed tests" are visible on the main view — not only inside the coding
+  // "Show details" drawer, and not suppressed when a sibling section's grading
+  // leaves the coding bar reading "Not graded yet".
+  const hiddenTests = selectHiddenTestResult(report);
 
   const orderedTypes = ['technical_task', 'mcq', 'free_text', 'ranking', 'adaptive_interview'];
   const sectionMap = new Map(sections.map(section => [section.content_type, section]));
@@ -247,6 +253,14 @@ function ScoreOverview({ report, sections, grading }) {
                     </span>
                   )}
                 </div>
+                {CODING_CONTENT_TYPES.includes(type) && hiddenTests && (
+                  <p
+                    className={`mt-[6px] text-[11px] font-medium leading-none ${hiddenTests.ran ? 'text-text-secondary' : 'text-error'}`}
+                    title="Hidden test cases run against the submitted code"
+                  >
+                    {hiddenTests.label}
+                  </p>
+                )}
               </div>
             );
           })}
@@ -366,6 +380,7 @@ export default function ReportDetailScreen() {
 
   const candidateName = getCandidateName(report);
   const grading = getReportGradingState(report);
+  const hiddenTests = selectHiddenTestResult(report);
   const taskSections = sections.length > 0
     ? sections
     : [{ section_name: 'Coding Task', content_type: 'technical_task', score: report.overall_score ?? null, max_score: 100, status: report.status }];
@@ -421,6 +436,7 @@ export default function ReportDetailScreen() {
                 key={section.section_id || `${section.content_type}-${index}`}
                 section={section}
                 reportGrading={grading}
+                hiddenTests={CODING_CONTENT_TYPES.includes(section.content_type) ? hiddenTests : null}
                 onShowDetails={setActiveSection}
               />
             ))}

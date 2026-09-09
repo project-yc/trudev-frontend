@@ -116,21 +116,29 @@ export function filterCandidates(rows, query) {
  * Review status never gates visibility: a `requires_human_review` report still
  * shows, in the unranked bucket (see `orderByRankEligibility`).
  */
-export function selectReportableRows(rows) {
-  return rows.filter(row => (
+export function isReportableRow(row) {
+  return (
     row.instanceStatus === SUBMITTED_STATUS ||
     row.state === REPORT_STATE.READY ||
     row.state === REPORT_STATE.ANALYZING ||
     row.state === REPORT_STATE.FAILED
-  ));
+  );
+}
+
+export function selectReportableRows(rows) {
+  return rows.filter(isReportableRow);
 }
 
 /**
- * Metric tile values. Submitted rows are the denominator — a candidate who
- * never submitted is not a report in any sense the screen cares about.
+ * Metric tile values. The "submitted" denominator must match what the table
+ * shows (`isReportableRow`), not `instanceStatus === 'Submitted'` alone — a
+ * finalized report whose instance settled on another status (e.g. a coding
+ * submit that left the instance 'In Progress', or a multi-section run that
+ * expired) appears in the table but was silently missing from the tiles, so the
+ * count disagreed with the visible rows.
  */
 export function deriveReportMetrics(rows) {
-  const submitted = rows.filter(row => row.instanceStatus === SUBMITTED_STATUS);
+  const submitted = rows.filter(isReportableRow);
   const ready = submitted.filter(row => row.state === REPORT_STATE.READY);
 
   const scored = ready.map(row => row.score).filter(Number.isFinite);

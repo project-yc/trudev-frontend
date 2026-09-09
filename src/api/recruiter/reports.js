@@ -17,11 +17,37 @@ import { authAxios } from '../../lib/axios';
  * assessment picker; the response shape varies (bare array vs paginated
  * envelope), so callers normalize via `normalizeList`.
  */
-export async function listAssessments({ pageSize, signal } = {}) {
-  if (!pageSize) return authAxios.get('/api/assessments/all', { signal });
+export async function listAssessments({ pageSize, page, signal } = {}) {
+  if (!pageSize && !page) return authAxios.get('/api/assessments/all', { signal });
   const params = new URLSearchParams();
-  params.set('page_size', String(pageSize));
+  if (pageSize) params.set('page_size', String(pageSize));
+  if (page) params.set('page', String(page));
   return authAxios.get(`/api/assessments/all?${params.toString()}`, { signal });
+}
+
+/**
+ * Every assessment in the org, following pagination. The picker must list them
+ * all — the endpoint caps `page_size` at 50, so a single request silently hid
+ * an org's 51st+ assessment (and its completed candidates) from the Reviews
+ * page. Returns the flat item array.
+ */
+export async function listAllAssessments({ signal } = {}) {
+  const PAGE_SIZE = 50;
+  const first = await listAssessments({ pageSize: PAGE_SIZE, page: 1, signal });
+  const body = first?.data ?? first;
+  const items = body?.items || body?.results || [];
+  const totalPages = Number(body?.total_pages) || 1;
+  if (totalPages <= 1) return items;
+
+  const rest = await Promise.all(
+    Array.from({ length: totalPages - 1 }, (_, i) =>
+      listAssessments({ pageSize: PAGE_SIZE, page: i + 2, signal }),
+    ),
+  );
+  return rest.reduce((acc, payload) => {
+    const b = payload?.data ?? payload;
+    return acc.concat(b?.items || b?.results || []);
+  }, items);
 }
 
 /**

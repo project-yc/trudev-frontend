@@ -42,7 +42,7 @@ function CardIllustration({ badge }) {
  * finalized, or any of the section's items failed to grade, the card says so
  * instead of printing a percentage that was never earned.
  */
-export function SectionCard({ section, reportGrading, onShowDetails }) {
+export function SectionCard({ section, reportGrading, hiddenTests = null, onShowDetails }) {
   const type = section?.content_type;
   const grading = getSectionGradingState(section, reportGrading);
   const graded = grading.state === GRADING_STATE.GRADED;
@@ -93,6 +93,17 @@ export function SectionCard({ section, reportGrading, onShowDetails }) {
           {signalLabel && (
             <p className={cn('mt-[5px] text-[13px] font-bold leading-[18px]', getSectionSignalTone(percent, section?.signal))}>
               {signalLabel}
+            </p>
+          )}
+          {hiddenTests && (
+            <p
+              className={cn(
+                'mt-[5px] text-[12px] font-medium leading-[16px]',
+                hiddenTests.ran ? 'text-text-secondary' : 'text-error',
+              )}
+              title="Hidden test cases run against the submitted code"
+            >
+              {hiddenTests.label}
             </p>
           )}
         </div>

@@ -71,6 +71,44 @@ export function selectCodingReport(report) {
 }
 
 /**
+ * The hidden-test outcome for the coding section, read from the
+ * `task_completion` dimension the backend already computes. This is the only
+ * place the pass count is exposed, so surface it from one helper instead of
+ * re-parsing the free-text summary in each component.
+ *
+ * Returns `{ passed, total, pct, ran, label }` or `null`. `null` means there is
+ * no per-test result to show — a non-coding section, or a coding submission the
+ * grader produced no counts for (all skipped / not run / not yet graded). The
+ * "0/0" collection-failure case (candidate code fails to import) returns
+ * `ran: false` so the UI can say the tests could not run rather than "0/0".
+ * Deliberately independent of the section grading %, which can read "Not graded
+ * yet" for a finished coding section when a *sibling* section is still pending.
+ */
+export function selectHiddenTestResult(report) {
+  const { dimensions } = selectCodingReport(report);
+  const taskCompletion = dimensions?.task_completion;
+  const raw = taskCompletion?.criteria?.hidden_tests; // "3/7" or "0/0"
+  if (typeof raw !== 'string' || !raw.includes('/')) return null;
+
+  const [passed, total] = raw.split('/').map(part => Number(part));
+  if (!Number.isFinite(passed) || !Number.isFinite(total)) return null;
+
+  const ran = total > 0;
+  const hiddenPct = taskCompletion?.criteria?.hidden_pct;
+  const pct = ran
+    ? Math.round(Number.isFinite(Number(hiddenPct)) ? Number(hiddenPct) : (passed / total) * 100)
+    : 0;
+
+  return {
+    passed,
+    total,
+    pct,
+    ran,
+    label: ran ? `${passed}/${total} hidden tests passed` : 'Hidden tests did not run',
+  };
+}
+
+/**
  * Anything that is not `clear` warrants a banner: `requires_human_review` (a
  * verification gap a person must look at) AND `insufficient_evidence` (the
  * instrument did not capture enough to rank this candidate). The second used

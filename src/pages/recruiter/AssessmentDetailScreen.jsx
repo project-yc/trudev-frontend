@@ -475,7 +475,16 @@ export default function AssessmentDetailScreen() {
     sections.flatMap(s => s.items.filter(i => i.content_type === 'technical_task' && i.ai_level).map(i => i.ai_level)),
   )];
 
-  const handleViewReport = (sessionId) => navigate(`/recruiter/reports/${id}/${sessionId}`);
+  // Prefer the server-emitted route, then the instance-keyed report (works for
+  // reports with no CandidateSession, e.g. non-coding), then the legacy
+  // session route. Gating report access on `status === 'Submitted'` alone hid a
+  // finalized report whenever its instance settled on another status.
+  const handleViewReport = (reportRow) => {
+    if (reportRow?.reportRoute) return navigate(reportRow.reportRoute);
+    if (reportRow?.assessmentInstanceId) return navigate(`/recruiter/reports/${reportRow.assessmentInstanceId}`);
+    if (reportRow?.sessionId) return navigate(`/recruiter/reports/${id}/${reportRow.sessionId}`);
+    return undefined;
+  };
 
   const handleShare = () => {
     copyToClipboard(window.location.href);
@@ -774,6 +783,10 @@ export default function AssessmentDetailScreen() {
                 {filtered.map(candidate => {
                   const reportRow = reportMap[String(candidate.id)];
                   const isSubmitted = candidate.status === 'Submitted';
+                  // A report exists once it reaches a real state — not only when
+                  // the instance is 'Submitted'. Score/report must show for a
+                  // finalized report whose instance settled elsewhere.
+                  const hasReport = Boolean(reportRow?.state && reportRow.state !== REPORT_STATE.PENDING);
                   return (
                     <TableRow key={candidate.id}>
                       <TableCell>
@@ -790,13 +803,13 @@ export default function AssessmentDetailScreen() {
                         </p>
                       </TableCell>
                       <TableCell className="font-semibold text-text-primary">
-                        {isSubmitted ? formatScore(reportRow?.score) : '—'}
+                        {hasReport ? formatScore(reportRow?.score) : '—'}
                       </TableCell>
                       <TableCell>
-                        {isSubmitted ? (
+                        {hasReport ? (
                           <ReportStatusCell
                             row={{ state: reportRow?.state || REPORT_STATE.PENDING }}
-                            onViewReport={() => handleViewReport(candidate.session_id)}
+                            onViewReport={() => handleViewReport(reportRow)}
                           />
                         ) : (
                           <span className="text-[12px] text-text-muted">—</span>

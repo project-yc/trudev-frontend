@@ -13,7 +13,7 @@ import { AskAnythingBar } from '../../components/recruiter/AskAnythingBar.jsx';
 import { MetricCard } from './reports/components/MetricCard';
 import { getAllAssessments, getCandidatesWithReports } from '../../api/recruiter/assessment.jsx';
 import { normalizeList, extractCandidates, orderByRankEligibility } from './reports/utils/reportRows';
-import { getRankEligibility } from '../../api/recruiter/reports';
+import { getRankEligibility, REPORT_STATE } from '../../api/recruiter/reports';
 import { ComparabilityCaption, RankPill, ScoreWithAiLevel, UnrankedGroupLabel } from './reports/components/RankPill';
 
 const POLL_INTERVAL_MS = 8000;
@@ -308,7 +308,11 @@ export default function CandidatesScreen() {
                     ) : (
                       filtered.map((c, idx) => {
                         const dims = c.dimensions;
-                        const hasReport = c.report_status === 'completed' && c.session_id;
+                        // A ready report is viewable regardless of whether it has
+                        // a CandidateSession (non-coding reports are instance-keyed)
+                        // or whether the raw report_status is the literal 'completed'
+                        // (a finalized report is signalled via assessment_status too).
+                        const hasReport = c.eligibility?.state === REPORT_STATE.READY;
                         const { rankEligible, reviewStatus, score, aiAccessLevel } = c.eligibility;
                         return [
                           idx === unrankedStart && (
@@ -355,12 +359,25 @@ export default function CandidatesScreen() {
                                     { key: 'task_completion',         label: 'Task' },
                                     { key: 'design_quality',          label: 'Design' },
                                     { key: 'problem_solving_process', label: 'Process' },
-                                  ].map(({ key, label }) => (
-                                    <div key={key} className="flex items-center gap-1" title={`${label}: ${dims[key]?.signal || 'N/A'}`}>
-                                      <SignalDot signal={dims[key]?.signal} />
-                                      <span className="text-[10px] text-text-secondary">{label}</span>
-                                    </div>
-                                  ))}
+                                  ].map(({ key, label }) => {
+                                    // Task shows the hidden-test pass count ("3/7")
+                                    // when the grader produced one — so completed
+                                    // tests are visible on the list, not only in
+                                    // the report detail. Coding sections only.
+                                    const tests = key === 'task_completion' ? dims[key]?.hidden_tests : null;
+                                    const chipTitle = tests
+                                      ? `${label}: ${dims[key]?.signal || 'N/A'} — ${tests} hidden tests passed`
+                                      : `${label}: ${dims[key]?.signal || 'N/A'}`;
+                                    return (
+                                      <div key={key} className="flex items-center gap-1" title={chipTitle}>
+                                        <SignalDot signal={dims[key]?.signal} />
+                                        <span className="text-[10px] text-text-secondary">
+                                          {label}
+                                          {tests ? <span className="ml-1 font-semibold text-text-primary">{tests}</span> : null}
+                                        </span>
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               ) : (
                                 <span className="text-[11px] text-text-muted">No report yet</span>
@@ -373,7 +390,7 @@ export default function CandidatesScreen() {
                               <div className="flex justify-end">
                                 {hasReport ? (
                                   <button
-                                    onClick={() => navigate(`/recruiter/reports/${selectedId}/${c.session_id}`)}
+                                    onClick={() => navigate(c.report_route || `/recruiter/reports/${c.id}`)}
                                     className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-tint border border-brand-border text-brand-deep text-[11px] font-semibold rounded-lg hover:bg-brand-tint-light hover:border-brand transition-all"
                                   >
                                     <FileText className="w-3 h-3" />View
