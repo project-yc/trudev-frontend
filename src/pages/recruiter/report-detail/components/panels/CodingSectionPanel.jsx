@@ -121,6 +121,43 @@ function ReviewStatus({ reviewPolicy }) {
   );
 }
 
+// Evidence bullets shown before the reader has to ask for the rest. Four is
+// enough to establish the pattern; a live run produced ten, several of them
+// restating the rubric rows above.
+const EVIDENCE_PREVIEW_COUNT = 4;
+
+function EvidenceList({ items }) {
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? items : items.slice(0, EVIDENCE_PREVIEW_COUNT);
+  const hidden = items.length - visible.length;
+  return (
+    <>
+      <ul className="space-y-[8px]">
+        {visible.map((item, index) => (
+          <li
+            key={`${item.dimension || 'evidence'}-${index}`}
+            className="flex gap-[9px] rounded-[10px] border border-border-subtle bg-surface px-[12px] py-[10px]"
+          >
+            <span className="mt-[6px] h-[6px] w-[6px] flex-shrink-0 rounded-full bg-brand" />
+            <p className="text-[12px] leading-[18px] text-text-secondary">{item.observation}</p>
+          </li>
+        ))}
+      </ul>
+      {(hidden > 0 || expanded) && items.length > EVIDENCE_PREVIEW_COUNT && (
+        <button
+          type="button"
+          onClick={() => setExpanded(value => !value)}
+          aria-expanded={expanded}
+          className="mt-[10px] flex items-center gap-[6px] text-[13px] font-medium text-brand-deep transition-colors hover:text-brand-navy"
+        >
+          {expanded ? 'Show fewer' : `Show ${hidden} more`}
+          <ChevronDown className={cn('h-[14px] w-[14px] transition-transform', expanded && 'rotate-180')} strokeWidth={2} />
+        </button>
+      )}
+    </>
+  );
+}
+
 /** Block 2 — "Top skills / Labels" chips, from the coding task's tags. */
 function SkillChips({ labels }) {
   if (!labels?.length) return null;
@@ -192,9 +229,14 @@ function RubricTable({ dimensions }) {
   );
 }
 
-/** Block 9 — expanded by default, as the Figma panel shows it. */
+/**
+ * Block 9 — the raw session, collapsed by default. A live run produced 23
+ * entries (three screens of file paths and prompt excerpts); expanded, it
+ * dominated a drawer whose job is the decision, not the replay. The block
+ * title carries the entry count so the reader knows what opening it costs.
+ */
 function ActivityTimeline({ timeline }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   if (!timeline?.length) return null;
 
   return (
@@ -205,7 +247,7 @@ function ActivityTimeline({ timeline }) {
         aria-expanded={open}
         className="flex items-center gap-[6px] text-[14px] font-medium text-brand-deep transition-colors hover:text-brand-navy"
       >
-        {open ? 'Hide activity timeline' : 'Show activity timeline'}
+        {open ? 'Hide activity timeline' : `Show activity timeline (${timeline.length} steps)`}
         <ChevronDown className={cn('h-[15px] w-[15px] transition-transform', open && 'rotate-180')} strokeWidth={2} />
       </button>
 
@@ -362,19 +404,7 @@ export function CodingSectionPanel({ report }) {
 
       {coding.evidence.length > 0 && (
         <PanelBlock title="Behavioral evidence">
-          <ul className="space-y-[8px]">
-            {coding.evidence.map((item, index) => (
-              <li
-                key={`${item.dimension || 'evidence'}-${index}`}
-                className="flex gap-[9px] rounded-[10px] border border-border-subtle bg-surface px-[12px] py-[10px]"
-              >
-                <span className="mt-[6px] h-[6px] w-[6px] flex-shrink-0 rounded-full bg-brand" />
-                <p className="text-[12px] leading-[18px] text-text-secondary">
-                  {item.observation || String(item)}
-                </p>
-              </li>
-            ))}
-          </ul>
+          <EvidenceList items={coding.evidence} />
         </PanelBlock>
       )}
 
@@ -408,11 +438,8 @@ export function CodingSectionPanel({ report }) {
         </PanelBlock>
       )}
 
-      {coding.topInsight && (
-        <PanelBlock title="AI summary">
-          <p className="text-[13px] leading-[20px] text-text-secondary">{coding.topInsight}</p>
-        </PanelBlock>
-      )}
+      {/* The AI summary is the insight banner on the page behind this drawer;
+          repeating it verbatim here was the first thing a reader scrolled past. */}
 
       {coding.growthEdges.length > 0 && (
         <PanelBlock title="Development areas">
