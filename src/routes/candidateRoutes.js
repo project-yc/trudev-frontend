@@ -11,6 +11,9 @@ export const CANDIDATE_ROUTES = {
   invite: '/invite/:token',
   landing: '/assessment/:token',
   terms: '/assessment/:token/terms',
+  // Coding-first assessments hand off here after the terms are accepted: the
+  // workspace provisions in the background while the candidate reads the intro.
+  launch: '/assessment/:token/launch',
   mcqSection: '/assessment/:token/mcq/:sectionIndex',
   section: '/candidate/assessment/:instanceId/sections/:sectionId',
   complete: '/candidate/assessment/:instanceId/complete',
@@ -19,6 +22,8 @@ export const CANDIDATE_ROUTES = {
 export const buildAssessmentLandingRoute = (token) => `/assessment/${token}`;
 
 export const buildAssessmentTermsRoute = (token) => `/assessment/${token}/terms`;
+
+export const buildAssessmentLaunchRoute = (token) => `/assessment/${token}/launch`;
 
 export const buildMcqSectionRoute = (token, sectionIndex) => (
   `/assessment/${token}/mcq/${sectionIndex}`

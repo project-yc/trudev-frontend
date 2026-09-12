@@ -21,6 +21,7 @@ import CandidateAssessmentCompletePage from './pages/candidate/CandidateAssessme
 import CandidateSectionRuntimePage from './pages/candidate/CandidateSectionRuntimePage'
 import AssessmentLandingPage from './pages/candidate/AssessmentLandingPage'
 import AssessmentTermsPage from './pages/candidate/AssessmentTermsPage'
+import AssessmentLaunchPage from './pages/candidate/AssessmentLaunchPage'
 import McqSectionPage from './pages/candidate/McqSectionPage'
 import OnboardingPage from './pages/recruiter/onboarding/OnboardingPage'
 import AssessmentBuilderPage from './pages/recruiter/assessments/new/AssessmentBuilderPage'
@@ -381,6 +382,7 @@ function App() {
         <Route path={CANDIDATE_ROUTES.complete} element={<CandidateAssessmentCompletePage />} />
         <Route path={CANDIDATE_ROUTES.landing} element={<AssessmentLandingPage />} />
         <Route path={CANDIDATE_ROUTES.terms} element={<AssessmentTermsPage />} />
+        <Route path={CANDIDATE_ROUTES.launch} element={<AssessmentLaunchPage />} />
         <Route path={CANDIDATE_ROUTES.mcqSection} element={<McqSectionPage />} />
         {/* Dev-only preview harness — must not ship as a public route. */}
         {ExamPreview && (

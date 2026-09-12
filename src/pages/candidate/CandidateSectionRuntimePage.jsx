@@ -300,7 +300,19 @@ export default function CandidateSectionRuntimePage() {
           if (returningFromCodingSubmit || returningFromCodingPause) {
             clearSubmissionTransitionParams()
           }
-          setScreen('overview')
+          // The launch page already showed the coding intro and provisioned the
+          // workspace in the background, so a ready coding runtime arriving with
+          // `autoBoot` skips a second intro and goes straight to the boot
+          // animation. Never on the pause/submit-return paths (they need the
+          // intro / their own transition).
+          const autoBootCoding = (
+            location.state?.autoBoot
+            && !returningFromCodingSubmit
+            && !returningFromCodingPause
+            && nextRuntime.contentType === 'technical_task'
+            && Boolean(nextRuntime.workspaceUrl)
+          )
+          setScreen(autoBootCoding ? 'booting' : 'overview')
         } catch (hydrateError) {
           setError(hydrateError.message || 'Failed to load candidate section runtime')
           setScreen('error')

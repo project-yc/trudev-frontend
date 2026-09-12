@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { IconChevronRight } from '@tabler/icons-react'
 import { getAssessmentOverview, startAssessment } from '../../api/candidate/assessmentSession'
+import { beginProvisioning } from '../../api/candidate/candidateProvisioning'
+import { buildAssessmentLaunchRoute } from '../../routes/candidateRoutes'
 import { saveCandidateBranding } from '../../theme/CandidateThemeProvider.jsx'
 import {
   CandidateCenteredErrorState,
@@ -40,8 +42,25 @@ export default function AssessmentTermsPage() {
   }, [token, overview])
 
   const handleStart = async () => {
-    setStarting(true)
     setError('')
+
+    // Coding-first assessment: start provisioning the workspace now, but do NOT
+    // block this page on it. It launches the container in the background (held
+    // in candidateProvisioning across the navigation) while the candidate reads
+    // the coding section intro; the launch page awaits it and the boot screen
+    // finishes it. This same call records terms acceptance server-side, so no
+    // consent is lost by not awaiting it here.
+    if (overview?.sections?.[0]?.content_type === 'technical_task') {
+      beginProvisioning(token, { terms_accepted: true }).catch(() => {
+        // Surfaced on the launch page; nothing to do here.
+      })
+      navigate(buildAssessmentLaunchRoute(token), { state: { overview } })
+      return
+    }
+
+    // Non-coding first section: no heavy container to preload, so the short
+    // await keeps the existing dispatch flow unchanged.
+    setStarting(true)
     try {
       const data = await startAssessment(token, { terms_accepted: true })
       handleAssessmentStartResponse(data, { token, overview, navigate })
