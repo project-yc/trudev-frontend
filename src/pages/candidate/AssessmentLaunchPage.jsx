@@ -12,11 +12,11 @@ import {
 } from '../../components/candidate/CandidateSectionScaffold'
 import { handleAssessmentStartResponse } from './assessmentStartNavigation'
 
-// The workspace is already booting in the background by the time this renders,
-// so the intro speaks to that rather than implying the wait starts on click.
+// Verbatim from the original coding-section intro (the runtime page's overview
+// screen), so this page reads exactly as that intro always has.
 const CODING_TIPS = [
-  'Your workspace is loading in the background — click Start Section when you are ready.',
-  'You will only be redirected once the workspace is reachable; a short boot animation covers the rest.',
+  'Click Start Section to begin the workspace boot sequence.',
+  'You will only be redirected once the workspace is reachable.',
 ]
 
 // Hand-off between the terms page and the coding section runtime for a
