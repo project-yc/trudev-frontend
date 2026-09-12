@@ -25,7 +25,10 @@ export default function AdaptiveInterviewTopBar({
     <ExamTopBar brand={<ExamBrand branding={branding} fallback={sectionName} subtitle={sectionName} />}>
       {sectionOrder && sectionCount && (
         <span className="hidden text-[13px] text-text-muted md:inline">
-          Section {sectionOrder} of {sectionCount}
+          {/* `section_order` from the backend is zero-based (Section.order);
+              a two-section assessment showed "Section 1 of 2" on its second
+              section. */}
+          Section {Number(sectionOrder) + 1} of {sectionCount}
         </span>
       )}
       {showProgress && (
