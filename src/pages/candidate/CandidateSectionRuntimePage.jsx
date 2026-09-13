@@ -29,7 +29,12 @@ import CandidateMcqSectionExperience from '../../components/candidate/CandidateM
 import CandidateAdaptiveInterviewExperience from './adaptive-interview'
 import { handleCandidateNextAction } from './assessmentStartNavigation'
 
-const MAX_BOOT_WAIT_MS = 45000
+// The start call used to block until Theia was up, so by the time this page
+// polled `/ready` the workspace was already there and 45s was generous. Start
+// now returns as soon as the container has an address (the blocking wait
+// killed the request on mobile networks), so the whole 45-90s boot happens
+// during this poll. Sized for a slow Fargate pull with room to spare.
+const MAX_BOOT_WAIT_MS = 180000
 const BOOT_POLL_INTERVAL_MS = 1500
 const POST_SUBMIT_TRANSITION_MS = 1200
 
