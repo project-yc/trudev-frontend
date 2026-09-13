@@ -484,15 +484,10 @@ export default function CandidateAdaptiveInterviewExperience({
       }
       setPendingNudge(null)
 
-      const lastIsUnanswered = lastQuestion && !lastQuestion.answer
-
-      if (lastIsUnanswered) {
-        setActiveQuestion(lastQuestion)
-        setTurnState('idle')
-        setScreen('chat')
-        return
-      }
-
+      // Finished takes precedence over "last question unanswered": a run that
+      // was ended (End button, or the clock) with its last question still open
+      // is closed, not resumable. Checking the open question first re-opened a
+      // live composer over a finalized run. Seen live on the End button.
       if (['submitted', 'pending_scoring', 'scoring'].includes(currentRun.status)) {
         // Finished in a previous visit (refresh, or the tab was closed mid-run).
         // There is no next_action on this payload, so ask the parent to resolve
@@ -502,6 +497,15 @@ export default function CandidateAdaptiveInterviewExperience({
         if (onRequestNextAction) {
           await onRequestNextAction()
         }
+        return
+      }
+
+      const lastIsUnanswered = lastQuestion && !lastQuestion.answer
+
+      if (lastIsUnanswered) {
+        setActiveQuestion(lastQuestion)
+        setTurnState('idle')
+        setScreen('chat')
         return
       }
 
