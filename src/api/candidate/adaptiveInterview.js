@@ -14,7 +14,9 @@ const READ_TIMEOUT_MS = 15000
 const DISPATCH_TIMEOUT_MS = 30000
 const SUBMIT_TIMEOUT_MS = 70000
 
-// GET .../adaptive-interview -> { engine_run }
+// GET .../adaptive-interview -> { engine_run, section, demo? }
+// `demo` is present only on the prospect demo assessment (welcome_message,
+// side_panel); it is platform content, not a recruiter field.
 export const getAdaptiveInterviewRun = (itemAttemptId, token) => (
   requestCandidate(base(itemAttemptId), token, {}, { timeoutMs: READ_TIMEOUT_MS })
 )

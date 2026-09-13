@@ -111,6 +111,23 @@ const memoryAidToScenario = (memoryAid) => {
   }
 }
 
+// The bootstrap payload's optional `demo` block is rendered by the platform for
+// the prospect demo assessment only: a welcome line before question one and a
+// standing side panel. It is not a recruiter field, and a run without it is
+// unchanged. The welcome joins paragraphs with "\n"; ChatBubbleAI renders
+// whitespace-pre-wrap, where a single newline is a line break, so it is
+// normalised to a blank line once here.
+const demoWelcomeToMessages = (demo) => {
+  const text = String(demo?.welcome_message ?? '')
+    .split(/\n+/).map((paragraph) => paragraph.trim()).filter(Boolean).join('\n\n')
+  if (!text) return []
+  // Fixed id, no question id: it is not a question, so it never counts toward
+  // numbering or the pending state. The transcript is rebuilt from scratch on
+  // every bootstrap (first load, refresh, 409 resync) and every other path only
+  // appends, so prepending it there is enough to keep it first and unrepeated.
+  return [{ id: 'demo-welcome', role: 'ai', text }]
+}
+
 export default function CandidateAdaptiveInterviewExperience({
   sectionToken,
   sectionName,
@@ -125,6 +142,7 @@ export default function CandidateAdaptiveInterviewExperience({
   const [statusMessage, setStatusMessage] = useState('')
   const [engineRun, setEngineRun] = useState(null)
   const [messages, setMessages] = useState([])
+  const [demo, setDemo] = useState(null)
   const [activeQuestion, setActiveQuestion] = useState(null)
   const previousQuestionIdRef = useRef(null)
   const [pendingNudge, setPendingNudge] = useState(null)
@@ -215,6 +233,7 @@ export default function CandidateAdaptiveInterviewExperience({
     // A stale `activeQuestion` also left section 2's composer enabled against
     // section 1's question before bootstrap replaced it.
     setMessages([])
+    setDemo(null)
     setActiveQuestion(null)
     setPendingNudge(null)
     setTurnState('idle')
@@ -383,9 +402,12 @@ export default function CandidateAdaptiveInterviewExperience({
     setScreen('preparing')
     setStatusMessage('Preparing your interview...')
     try {
-      const { engine_run: run, section } = await getAdaptiveInterviewRun(itemAttemptId, sectionToken)
+      const { engine_run: run, section, demo: demoBlock } = await getAdaptiveInterviewRun(
+        itemAttemptId, sectionToken,
+      )
       let currentRun = run
       let sectionInfo = section
+      setDemo(demoBlock || null)
 
       if (currentRun.status === 'pending_generation') {
         setStatusMessage('Starting your interview...')
@@ -411,7 +433,7 @@ export default function CandidateAdaptiveInterviewExperience({
       currentRun = hydratedRun
 
       setEngineRun(currentRun)
-      setMessages(existingQuestions.flatMap(questionToMessages))
+      setMessages([...demoWelcomeToMessages(demoBlock), ...existingQuestions.flatMap(questionToMessages)])
 
       const lastQuestion = existingQuestions[existingQuestions.length - 1] || null
 
@@ -792,12 +814,13 @@ export default function CandidateAdaptiveInterviewExperience({
   }, [itemAttemptId, onRequestNextAction, onSubmitResult, sectionToken])
 
   // The panel is data-driven: a pending nudge's memory aid outranks the
-  // question's attached scenario; no data means no panel.
+  // question's attached scenario, which outranks the demo side panel (the
+  // standing fallback for any question without one); no data means no panel.
   const activeScenario = useMemo(() => {
     const fromNudge = memoryAidToScenario(pendingNudge?.memory_aid)
     if (fromNudge) return fromNudge
-    return activeQuestion?.scenario || null
-  }, [pendingNudge, activeQuestion])
+    return activeQuestion?.scenario || demo?.side_panel || null
+  }, [pendingNudge, activeQuestion, demo])
 
   // Countdown target: the server's expires_at when we have it (authoritative),
   // else the legacy started_at + timer derivation. Hidden when neither exists.
