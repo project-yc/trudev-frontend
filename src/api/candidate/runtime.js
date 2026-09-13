@@ -30,6 +30,15 @@ export const requestCandidate = async (url, token, options = {}, { unwrapData = 
       timeoutError.code = 'timeout'
       throw timeoutError
     }
+    // A TypeError from fetch means no response at all (offline, DNS failure,
+    // dropped connection, blocked request). The browser's own text, "Failed to
+    // fetch", gives the candidate nothing to act on.
+    if (err instanceof TypeError) {
+      const networkError = new Error("We couldn't reach the server. Check your connection and try again.")
+      networkError.status = 0
+      networkError.code = 'network'
+      throw networkError
+    }
     throw err
   } finally {
     if (timer) clearTimeout(timer)
@@ -59,6 +68,11 @@ export const requestCandidate = async (url, token, options = {}, { unwrapData = 
 
   return body?.data ?? body
 }
+
+// True when the request never got a response (offline, DNS, dropped
+// connection, or the opt-in timeout above), so callers can suggest a retry
+// instead of echoing the raw error.
+export const isConnectivityError = (err) => err?.code === 'network' || err?.code === 'timeout'
 
 export const buildCandidateSectionRoute = (assessmentInstanceId, sectionId) => (
   `/candidate/assessment/${assessmentInstanceId}/sections/${sectionId}`

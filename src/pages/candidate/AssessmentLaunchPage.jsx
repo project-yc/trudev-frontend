@@ -3,7 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { IconChevronRight } from '@tabler/icons-react'
 import { getAssessmentOverview, saveMcqSession } from '../../api/candidate/assessmentSession'
 import { beginProvisioning, getProvisioning } from '../../api/candidate/candidateProvisioning'
-import { buildCandidateSectionRoute, saveCandidateRuntimeState } from '../../api/candidate/runtime'
+import { buildCandidateSectionRoute, isConnectivityError, saveCandidateRuntimeState } from '../../api/candidate/runtime'
 import { saveCandidateBranding } from '../../theme/CandidateThemeProvider.jsx'
 import {
   CandidateCenteredErrorState,
@@ -112,7 +112,9 @@ export default function AssessmentLaunchPage() {
         { replace: true, state: { runtime, autoBoot: true } },
       )
     } catch (e) {
-      setError(e.message || 'Could not start the coding workspace')
+      setError(isConnectivityError(e)
+        ? "We couldn't reach the server while setting up your workspace. Your place is saved. Check your connection and tap Start Section again."
+        : (e.message || 'Could not start the coding workspace'))
       setStarting(false)
     }
   }

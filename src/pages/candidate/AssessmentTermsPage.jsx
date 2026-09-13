@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { IconChevronRight } from '@tabler/icons-react'
 import { getAssessmentOverview, startAssessment } from '../../api/candidate/assessmentSession'
 import { beginProvisioning } from '../../api/candidate/candidateProvisioning'
+import { isConnectivityError } from '../../api/candidate/runtime'
 import { buildAssessmentLaunchRoute } from '../../routes/candidateRoutes'
 import { saveCandidateBranding } from '../../theme/CandidateThemeProvider.jsx'
 import {
@@ -65,7 +66,9 @@ export default function AssessmentTermsPage() {
       const data = await startAssessment(token, { terms_accepted: true })
       handleAssessmentStartResponse(data, { token, overview, navigate })
     } catch (e) {
-      setError(e.message || 'Failed to start assessment')
+      setError(isConnectivityError(e)
+        ? "We couldn't reach the server. Check your connection and tap Start again."
+        : (e.message || 'Failed to start assessment'))
       setStarting(false)
     }
   }
