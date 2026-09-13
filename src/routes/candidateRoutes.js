@@ -9,6 +9,8 @@
 
 export const CANDIDATE_ROUTES = {
   invite: '/invite/:token',
+  // Public demo landing: no invite yet, the page mints one on "Start the demo".
+  demo: '/demo/:slug',
   landing: '/assessment/:token',
   terms: '/assessment/:token/terms',
   // Coding-first assessments hand off here after the terms are accepted: the
@@ -18,6 +20,8 @@ export const CANDIDATE_ROUTES = {
   section: '/candidate/assessment/:instanceId/sections/:sectionId',
   complete: '/candidate/assessment/:instanceId/complete',
 };
+
+export const buildInviteRoute = (token) => `/invite/${token}`;
 
 export const buildAssessmentLandingRoute = (token) => `/assessment/${token}`;
 

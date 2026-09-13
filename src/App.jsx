@@ -17,6 +17,7 @@ import TeamInviteScreen from './pages/recruiter/invite/TeamInviteScreen'
 import SettingsPage from './pages/recruiter/settings'
 import InviteCandidate from './pages/recruiter/InviteCandidate'
 import InviteRedirect from './pages/candidate/InviteRedirect'
+import PublicDemoPage from './pages/candidate/PublicDemoPage'
 import CandidateAssessmentCompletePage from './pages/candidate/CandidateAssessmentCompletePage'
 import CandidateSectionRuntimePage from './pages/candidate/CandidateSectionRuntimePage'
 import AssessmentLandingPage from './pages/candidate/AssessmentLandingPage'
@@ -378,6 +379,9 @@ function App() {
           } 
         />
         <Route path={CANDIDATE_ROUTES.invite} element={<InviteRedirect />} />
+        {/* Public demo landing: mints a fresh invite on start, then joins the
+            normal /invite/:token flow above. No auth, like the other candidate routes. */}
+        <Route path={CANDIDATE_ROUTES.demo} element={<PublicDemoPage />} />
         <Route path={CANDIDATE_ROUTES.section} element={<CandidateSectionRuntimePage />} />
         <Route path={CANDIDATE_ROUTES.complete} element={<CandidateAssessmentCompletePage />} />
         <Route path={CANDIDATE_ROUTES.landing} element={<AssessmentLandingPage />} />
