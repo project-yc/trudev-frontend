@@ -202,6 +202,25 @@ export default function CandidateSectionRuntimePage() {
     // gone and must be relaunched on Resume — not on landing, or the clock
     // would restart before the candidate chose to continue.
     const [pausedReturn, setPausedReturn] = useState(false)
+    // The adaptive interview used to open straight into the chat with its clock
+    // already running: no Start Section, no breath before a timed conversation,
+    // while every other section type gets the intro. It now gets the same
+    // screen. Acknowledged once per item attempt (kept in sessionStorage so a
+    // reload mid-interview resumes without asking again). The section clock
+    // starts when the run starts, which happens after Start, not on this screen.
+    const [adaptiveIntroDoneFor, setAdaptiveIntroDoneFor] = useState(null)
+    const adaptiveIntroKey = runtimeState?.currentItemAttemptId
+      ? `trudev.adaptiveIntroDone.${runtimeState.currentItemAttemptId}`
+      : null
+    const adaptiveIntroDone = Boolean(adaptiveIntroKey) && (
+      adaptiveIntroDoneFor === adaptiveIntroKey
+      || (() => { try { return sessionStorage.getItem(adaptiveIntroKey) === '1' } catch { return false } })()
+    )
+    const acknowledgeAdaptiveIntro = () => {
+      if (!adaptiveIntroKey) return
+      try { sessionStorage.setItem(adaptiveIntroKey, '1') } catch { /* storage unavailable: state alone carries it */ }
+      setAdaptiveIntroDoneFor(adaptiveIntroKey)
+    }
 
     const handleNextAction = useCallback((actionPayload) => {
       if (!actionPayload?.next_action) {
@@ -554,9 +573,30 @@ export default function CandidateSectionRuntimePage() {
   const sectionLabel = SECTION_LABELS[runtimeState?.contentType] || 'Section'
 
   if (screen === 'overview') {
-    // Like MCQ, the adaptive interview owns its own intro/loading/expiry screens
-    // and bootstraps itself, so it renders instead of the generic intro rather
-    // than going through beginSection/loadSectionContent.
+    // The adaptive interview owns its own loading/expiry screens and bootstraps
+    // itself, so it renders in place of beginSection/loadSectionContent. It
+    // still gets the generic intro first (see adaptiveIntroDone above).
+    if (runtimeState?.contentType === 'adaptive_interview' && !adaptiveIntroDone) {
+      return (
+        <CandidateSectionIntroScreen
+          eyebrow={`${sectionLabel} Section`}
+          title={runtimeState?.sectionName || 'AI Interview'}
+          subtitle={runtimeState?.assessmentName || 'Assessment progression'}
+          metaItems={[
+            sectionLabel,
+            ...(runtimeState?.sectionTimerMinutes ? [`${runtimeState.sectionTimerMinutes} min`] : []),
+          ]}
+          tips={[
+            'A short conversation with an AI interviewer. Type your answers, or tap the mic and talk.',
+            'The clock starts when the first question appears, not on this screen.',
+            'You can end the interview early from the top bar; the answers you gave are still scored.',
+          ]}
+          error={error}
+          actionContent="Start Section"
+          onAction={acknowledgeAdaptiveIntro}
+        />
+      )
+    }
     if (runtimeState?.contentType === 'adaptive_interview') {
       return (
         <CandidateAdaptiveInterviewExperience
