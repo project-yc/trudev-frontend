@@ -51,6 +51,8 @@ export default function InterviewChatScreen({
   // off, which is the thing being fixed — hence an override here rather than a
   // second screen component.
   closing = null,
+  // Top-bar "End interview". Absent on screens that are already closing.
+  onEndInterview = null,
 }) {
   return (
     <ExamShell
@@ -66,6 +68,7 @@ export default function InterviewChatScreen({
           remainingSeconds={remainingSeconds}
           elapsedSeconds={elapsedSeconds}
           onOpenScenario={scenario ? () => onScenarioSheetOpenChange?.(true) : null}
+          onEndInterview={closing ? null : onEndInterview}
         />
       )}
       // Right-hand rail: the conversation is the task, the scenario is the

@@ -13,14 +13,16 @@ export default function AdaptiveInterviewTopBar({
   remainingSeconds,
   elapsedSeconds,
   onOpenScenario,
+  onEndInterview,
 }) {
   // Progress alongside the countdown. Without a denominator the timer is just
   // pressure: a candidate cannot tell whether they have two questions left or
   // six, so they over-invest in the first one and get cut off.
   const showProgress = Number.isFinite(questionNumber) && Number.isFinite(questionTotal) && questionTotal > 0
-  // Deliberately no "Finish interview" button: the interview ends itself after
-  // the last question, and an early-exit button let a candidate answer one
-  // strong question and bank full section credit for it.
+  // "End interview" (product decision, 2026-09-13): an early exit is allowed
+  // on every adaptive section. It confirms once in the composer strip, then
+  // finalizes like the clock running out, so only the answers given are
+  // scored; ending early banks nothing for the questions not asked.
   return (
     <ExamTopBar brand={<ExamBrand branding={branding} fallback={sectionName} subtitle={sectionName} />}>
       {sectionOrder && sectionCount && (
@@ -37,6 +39,15 @@ export default function AdaptiveInterviewTopBar({
         </span>
       )}
       <ExamTimer remainingSeconds={remainingSeconds} elapsedSeconds={elapsedSeconds} />
+      {onEndInterview && (
+        <button
+          type="button"
+          onClick={onEndInterview}
+          className="h-9 rounded-lg border border-border-strong bg-surface-muted px-3 text-[13px] font-medium text-text-secondary transition-colors hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+        >
+          End interview
+        </button>
+      )}
 
       {/* Below `lg` the scenario rail collapses into a sheet. Its trigger lives
           up here rather than in a bar of its own along the bottom: on a phone,

@@ -18,7 +18,10 @@ export default function InterviewStatusPanel({ variant, message, onRetry, onCont
     )
   }
 
-  const isExpired = variant === 'expired'
+  // `ended` is the candidate's own early exit: it closes like `expired` (the
+  // run is finalized, Continue moves on) but must not read as a penalty.
+  const isEnded = variant === 'ended'
+  const isExpired = variant === 'expired' || isEnded
   const isComplete = variant === 'complete'
   // The backend mints a distinct `interview_misconfigured` code precisely so the
   // UI can stop offering "retry" — no amount of retrying fixes a config. Until
@@ -28,7 +31,7 @@ export default function InterviewStatusPanel({ variant, message, onRetry, onCont
   // budget while the candidate waited out the clock.
   const isMisconfigured = variant === 'misconfigured'
 
-  const icon = isComplete
+  const icon = isComplete || isEnded
     ? <IconCircleCheck size={28} className="text-brand" />
     : isExpired
       ? <IconClockPause size={28} className="text-error" />
@@ -41,7 +44,7 @@ export default function InterviewStatusPanel({ variant, message, onRetry, onCont
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
         className={
-          isComplete
+          isComplete || isEnded
             ? 'flex h-16 w-16 items-center justify-center rounded-2xl border border-border-default bg-surface'
             : 'flex h-16 w-16 items-center justify-center rounded-2xl border border-error-border bg-error-bg'
         }
@@ -52,6 +55,8 @@ export default function InterviewStatusPanel({ variant, message, onRetry, onCont
         <h1 className="text-[24px] font-bold tracking-[-0.025em] text-text-primary">
           {isComplete
             ? 'Interview complete'
+            : isEnded
+              ? 'Interview ended'
             : isExpired
               ? 'Section timer expired'
               : isMisconfigured
@@ -59,7 +64,7 @@ export default function InterviewStatusPanel({ variant, message, onRetry, onCont
                 : 'Interview unavailable'}
         </h1>
         <p className="text-[14px] leading-relaxed text-text-secondary">
-          {message || (isComplete
+          {message || (isComplete || isEnded
             ? 'Your answers have been submitted.'
             : isExpired
               ? 'This section has already been marked complete.'

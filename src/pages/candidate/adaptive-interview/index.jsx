@@ -51,6 +51,17 @@ const NEXT_QUESTION_GIVE_UP_MS = 240000
 // packet, a wifi handover or a proxy restart is expected, not exceptional.
 const MAX_TRANSIENT_POLL_RETRIES = 4
 
+// Minimum time the interviewer is shown "thinking" before a message of its
+// own lands. A scripted question comes back from the engine in the same
+// round trip as the request, and a nudge can resolve in under a second; a
+// bubble that appears the instant the candidate's answer does reads as canned
+// rather than considered, and gives them no beat to finish reading their own
+// words. Measured from when the wait began, so a slow generation adds nothing.
+const MIN_THINKING_MS = 1800
+const holdForThinking = (startedAt, minMs = MIN_THINKING_MS) => new Promise((resolve) => {
+  setTimeout(resolve, Math.max(0, minMs - (Date.now() - (startedAt || Date.now()))))
+})
+
 const makeId = () => (
   typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`
 )
@@ -148,6 +159,11 @@ export default function CandidateAdaptiveInterviewExperience({
   const [pendingNudge, setPendingNudge] = useState(null)
   const [composerValue, setComposerValue] = useState('')
   const [turnState, setTurnState] = useState('idle') // 'idle' | 'sending' | 'thinking'
+  // The End button asks once before it finalizes; this holds that strip open.
+  const [endConfirmOpen, setEndConfirmOpen] = useState(false)
+  // Distinguishes the candidate ending early from the clock running out: the
+  // finalize path is shared, the closing screen is not.
+  const [endedByCandidate, setEndedByCandidate] = useState(false)
   // The handoff to the next section, held rather than fired, so the candidate
   // gets to read the interviewer's last line first. See the `farewell` screen.
   const advanceRef = useRef(null)
@@ -546,7 +562,10 @@ export default function CandidateAdaptiveInterviewExperience({
       }
 
       if (question) {
+        const waitStartedAt = pollStartedAtRef.current
         pollStartedAtRef.current = 0
+        await holdForThinking(waitStartedAt)
+        if (expiryHandledRef.current || unmountedRef.current) return
         // A question in hand is the ONLY proof the page and the run agree, so it
         // is the only thing that may refill the resync budget. This used to sit
         // at the end of bootstrap(), one line above its own call to
@@ -657,6 +676,7 @@ export default function CandidateAdaptiveInterviewExperience({
     setComposerValue('')
 
     if (!idempotencyKeyRef.current) idempotencyKeyRef.current = makeId()
+    const sentAt = Date.now()
 
     try {
       const result = await submitAdaptiveInterviewAnswers(itemAttemptId, sectionToken, {
@@ -683,6 +703,13 @@ export default function CandidateAdaptiveInterviewExperience({
       // falls THROUGH to the normal progression below rather than returning.
       const nudge = result.engine_run?.nudge
       const nudgeIsForThisQuestion = nudge && nudge.question_id === activeQuestion.id
+      if (nudgeIsForThisQuestion || result.engine_run?.closing_message) {
+        // The interviewer is about to speak: show it thinking for at least the
+        // minimum beat, counted from when the answer was sent.
+        setTurnState('thinking')
+        await holdForThinking(sentAt)
+        if (expiryHandledRef.current || unmountedRef.current) return
+      }
       if (nudgeIsForThisQuestion) {
         setMessages((prev) => [...prev, { id: makeId(), role: 'ai', text: nudge.text, isNudge: true }])
       }
@@ -783,9 +810,8 @@ export default function CandidateAdaptiveInterviewExperience({
   ])
 
   // Timer expiry: finalize server-side so the answers the candidate DID give
-  // are scored, then show the time-up screen. There is deliberately no
-  // candidate-facing "End interview" button — the interview closes itself after
-  // the last question, and the only early exit is running out the clock.
+  // are scored, then show the time-up screen. The End button below takes the
+  // same path by choice.
   const handleTimerExpiry = useCallback(async () => {
     if (expiryHandledRef.current) return
     expiryHandledRef.current = true
@@ -810,6 +836,35 @@ export default function CandidateAdaptiveInterviewExperience({
       // The reconciliation sweep finalizes abandoned runs server-side; the
       // screen already says time is up.
       setStatusMessage("Time's up. The answers you gave will be submitted for scoring.")
+    }
+  }, [itemAttemptId, onRequestNextAction, onSubmitResult, sectionToken])
+
+  // Candidate-initiated end. Product decision (2026-09-13): the interview can
+  // be ended early from the top bar, on every adaptive section. It asks once,
+  // then finalizes exactly as the clock running out does, so the answers given
+  // so far are scored and the rest are skipped. Nothing about what was
+  // answered changes; only the remaining questions are not asked.
+  const handleEndInterview = useCallback(async () => {
+    if (expiryHandledRef.current) return
+    expiryHandledRef.current = true
+    setEndConfirmOpen(false)
+    setEndedByCandidate(true)
+    clearTimeout(pollTimeoutRef.current)
+    pollStartedAtRef.current = 0
+    setTurnState('sending')
+    setStatusMessage('Ending the interview and submitting the answers you gave...')
+    setScreen('expired')
+    try {
+      const result = await finishAdaptiveInterview(itemAttemptId, sectionToken)
+      setEngineRun(result.engine_run)
+      setStatusMessage('The answers you gave were submitted for scoring.')
+      if (result.next_action) {
+        onSubmitResult?.(result)
+      } else if (onRequestNextAction) {
+        await onRequestNextAction()
+      }
+    } catch {
+      setStatusMessage('The answers you gave will be submitted for scoring.')
     }
   }, [itemAttemptId, onRequestNextAction, onSubmitResult, sectionToken])
 
@@ -910,7 +965,7 @@ export default function CandidateAdaptiveInterviewExperience({
     return (
       <ExamShell branding={branding} topBar={topBar}>
         <InterviewStatusPanel
-          variant="expired"
+          variant={endedByCandidate ? 'ended' : 'expired'}
           message={statusMessage}
           onContinue={onRequestNextAction}
         />
@@ -1027,6 +1082,29 @@ export default function CandidateAdaptiveInterviewExperience({
       composerDisabled={composerDisabled}
       dictation={dictation}
       sendError={sendError}
+      onEndInterview={() => setEndConfirmOpen(true)}
+      // The confirm strip takes the composer's place rather than opening a
+      // modal: the transcript stays readable while they decide, and "Keep
+      // going" puts the composer straight back.
+      closing={endConfirmOpen ? (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-[13px] leading-[1.5] text-text-muted">
+            End the interview now? The answers you gave are scored; the remaining questions are skipped.
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setEndConfirmOpen(false)}
+              className="rounded-lg border border-border-strong bg-surface-muted px-3 py-2 text-[13px] font-medium text-text-secondary transition-colors hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+            >
+              Keep going
+            </button>
+            <ExamButton onClick={handleEndInterview} autoFocus>
+              End interview
+            </ExamButton>
+          </div>
+        </div>
+      ) : null}
     />
   )
 }
