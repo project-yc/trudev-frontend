@@ -40,6 +40,9 @@ const TaskCodeViewPage = lazy(() => import('./pages/recruiter/TaskCodeViewPage')
 // Public product page for the AI Adaptive Interview. Code-split: it is
 // marketing-weight and never loads for someone who stays inside the app.
 const AdaptiveInterviewLanding = lazy(() => import('./pages/public/adaptive-interview'))
+// Public, scripted product tour — the demo link in outbound emails. Code-split
+// for the same reason, and it pulls in CodeMirror for its mock workspace.
+const ProductTourPage = lazy(() => import('./pages/public/tour'))
 // Dev-only preview harness. Lazy AND gated on DEV so the module (and the
 // fixtures it drags in) never enters the production bundle; a static import
 // would have kept it there even though its route was already guarded.
@@ -106,6 +109,16 @@ function App() {
           element={
             <Suspense fallback={<div className="min-h-screen bg-[#0A0908]" />}>
               <AdaptiveInterviewLanding />
+            </Suspense>
+          }
+        />
+        {/* Public: fixture-driven walkthrough, no API calls. Not /demo/:slug —
+            that one mints a real invite for the live assessment. */}
+        <Route
+          path="/tour"
+          element={
+            <Suspense fallback={<div className="min-h-screen bg-[#0A0908]" />}>
+              <ProductTourPage />
             </Suspense>
           }
         />

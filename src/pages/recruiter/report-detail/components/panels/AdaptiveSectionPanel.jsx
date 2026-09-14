@@ -411,12 +411,15 @@ function Transcript({ transcript, snapshotVersion }) {
   );
 }
 
-export function AdaptiveSectionPanel({ section, report }) {
+// `sectionReport` skips the fetch and renders the given slice — used by the
+// public product tour, which has fixture data and no backend.
+export function AdaptiveSectionPanel({ section, report, sectionReport }) {
   const { data, loading, error } = useSectionReport(
     getAdaptiveSectionReport,
     report?.assessment_instance_id,
     section?.section_id,
     'Failed to load interview results.',
+    sectionReport,
   );
 
   if (loading) {

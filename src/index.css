@@ -654,6 +654,36 @@
 .lp-marquee-host:hover .lp-marquee { animation-play-state: paused; }
 
 /* ═══════════════════════════════════════════════════════
+   PRODUCT TOUR (/tour)
+   ═══════════════════════════════════════════════════════ */
+
+/* The ring around whatever the current step is about. It glides between
+   targets rather than jumping, and breathes once it arrives. */
+.tour-spotlight {
+  border: 2px solid rgba(255, 133, 40, 0.9);
+  box-shadow:
+    0 0 0 4px rgba(255, 133, 40, 0.16),
+    0 0 36px -6px rgba(255, 107, 0, 0.55);
+  transition: top 380ms cubic-bezier(0.16, 1, 0.3, 1),
+              left 380ms cubic-bezier(0.16, 1, 0.3, 1),
+              width 380ms cubic-bezier(0.16, 1, 0.3, 1),
+              height 380ms cubic-bezier(0.16, 1, 0.3, 1);
+  animation: tourSpotlightBreathe 2.4s ease-in-out infinite;
+}
+@keyframes tourSpotlightBreathe {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(255, 133, 40, 0.16), 0 0 36px -6px rgba(255, 107, 0, 0.55); }
+  50%      { box-shadow: 0 0 0 7px rgba(255, 133, 40, 0.08), 0 0 44px -4px rgba(255, 107, 0, 0.7); }
+}
+
+/* "Next" asks for the click only once the step has finished playing. */
+.tour-next-ready { animation: tourNextReady 1.8s ease-out infinite; }
+@keyframes tourNextReady {
+  0%   { box-shadow: 0 0 0 0 rgba(255, 133, 40, 0.55); }
+  70%  { box-shadow: 0 0 0 10px rgba(255, 133, 40, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 133, 40, 0); }
+}
+
+/* ═══════════════════════════════════════════════════════
    Reduced motion — hold every animated state at its resting value.
    ═══════════════════════════════════════════════════════ */
 @media (prefers-reduced-motion: reduce) {
@@ -667,7 +697,9 @@
   .lp-aurora,
   .lp-shimmer,
   .lp-caret,
-  .lp-marquee {
+  .lp-marquee,
+  .tour-spotlight,
+  .tour-next-ready {
     animation: none !important;
     transition: none !important;
   }

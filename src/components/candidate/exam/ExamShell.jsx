@@ -110,6 +110,9 @@ export function ExamProgress({ value = 0, total = 0 }) {
  *                         grows. It sits on the same background as the stage
  *                         (no `bg-chrome`) so an `ambient` layer runs behind
  *                         it unbroken.
+ * @param heightClassName  the shell's height. Full viewport by default; the
+ *                         public product tour mounts a screen under its own
+ *                         top bar and passes `h-full` instead.
  */
 export default function ExamShell({
   branding,
@@ -123,12 +126,13 @@ export default function ExamShell({
   ambient,
   footer,
   mainClassName = '',
+  heightClassName = 'h-screen',
 }) {
   const rail = sidebar && sidebarPosition === 'right'
 
   return (
-    <CandidateThemeScope branding={branding}>
-      <div className="flex h-screen flex-col overflow-hidden bg-page text-text-primary">
+    <CandidateThemeScope branding={branding} className={heightClassName === 'h-screen' ? '' : heightClassName}>
+      <div className={cn('flex flex-col overflow-hidden bg-page text-text-primary', heightClassName)}>
         {topBar}
 
         <div className="flex min-h-0 flex-1">

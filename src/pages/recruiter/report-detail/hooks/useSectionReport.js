@@ -8,12 +8,16 @@ import { useEffect, useState } from 'react';
  * `(assessmentInstanceId, sectionId, { signal })`. The result is tagged with
  * the section it belongs to so `loading` is derived rather than reset in an
  * effect — same pattern as useReportsTable.
+ *
+ * `preloaded`, when given, is returned as-is and nothing is fetched. The public
+ * product tour renders these panels from fixture data with no backend.
  */
-export function useSectionReport(fetcher, assessmentInstanceId, sectionId, fallbackMessage) {
+export function useSectionReport(fetcher, assessmentInstanceId, sectionId, fallbackMessage, preloaded) {
   const [result, setResult] = useState({ sectionId: null, data: null });
   const [failure, setFailure] = useState({ sectionId: null, message: '' });
 
-  const ready = Boolean(assessmentInstanceId && sectionId);
+  const hasPreloaded = preloaded !== undefined;
+  const ready = !hasPreloaded && Boolean(assessmentInstanceId && sectionId);
   const isCurrent = result.sectionId === sectionId;
   const error = failure.sectionId === sectionId ? failure.message : '';
   const loading = ready && !isCurrent && !error;
@@ -35,5 +39,6 @@ export function useSectionReport(fetcher, assessmentInstanceId, sectionId, fallb
     return () => controller.abort();
   }, [fetcher, assessmentInstanceId, sectionId, ready, fallbackMessage]);
 
+  if (hasPreloaded) return { data: preloaded, loading: false, error: '' };
   return { data: isCurrent ? result.data : null, loading, error };
 }

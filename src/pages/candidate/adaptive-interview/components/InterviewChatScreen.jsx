@@ -53,10 +53,14 @@ export default function InterviewChatScreen({
   closing = null,
   // Top-bar "End interview". Absent on screens that are already closing.
   onEndInterview = null,
+  // Full viewport unless the host mounts the screen inside its own chrome
+  // (the public product tour does). See ExamShell.
+  heightClassName,
 }) {
   return (
     <ExamShell
       branding={branding}
+      heightClassName={heightClassName}
       topBar={(
         <AdaptiveInterviewTopBar
           branding={branding}
