@@ -231,10 +231,13 @@ function reduceInterview(view, beat) {
 // `send` waits long enough for the composer's typewriter to finish the answer.
 const sendWait = text => 900 + text.length * 7;
 
+// No `target` on any of these steps — the reused InterviewChatScreen takes up
+// almost the entire stage on its own, so a ring around "main" would have
+// outlined nearly the whole screen and marked nothing in particular. The
+// conversation itself is the point here; nothing needs to be pointed at.
 const INTERVIEW_STEPS = [
   {
     id: 'open',
-    target: 'interview-chat',
     title: 'Next, an interview about their own code',
     body: 'Right after submitting, Priya gets a short AI interview. The first question comes straight from the diff: the AI suggestion Priya rewrote.',
     beats: [
@@ -245,7 +248,6 @@ const INTERVIEW_STEPS = [
   },
   {
     id: 'nudge',
-    target: 'interview-chat',
     title: 'Vague answers get a follow-up',
     body: "Priya's first answer is thin. Instead of moving on, the interviewer narrows the question, the way a good senior engineer would.",
     beats: [
@@ -257,7 +259,6 @@ const INTERVIEW_STEPS = [
   },
   {
     id: 'scenario',
-    target: 'interview-scenario',
     title: 'Real artifacts, not trivia',
     body: "Priya explains the restart case precisely. The next question puts a 2am production log in the side panel and asks what's going on.",
     beats: [
@@ -271,7 +272,6 @@ const INTERVIEW_STEPS = [
   },
   {
     id: 'close',
-    target: 'interview-chat',
     title: "A pasted fix doesn't survive this",
     body: "Every question is built from the candidate's own code, test results and AI usage. Someone who pasted the fix can't explain it, and the transcript shows it.",
     beats: [
