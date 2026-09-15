@@ -183,6 +183,22 @@ export default function ProductTourPage() {
 
       {Screen && (
         <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+          {/* First in DOM order on purpose — see NarratorPanel's comment.
+              Above the stage on mobile, to its left on desktop, so the reader
+              meets the copy before the stage either way. */}
+          <NarratorPanel
+            chapterNumber={railChapters.findIndex(c => c.id === chapter.id) + 1}
+            chapterLabel={chapter.label}
+            step={step}
+            stepIndex={position.stepIndex}
+            stepCount={chapter.steps.length}
+            done={done}
+            onBack={() => goTo(index - 1)}
+            onNext={() => goTo(index + 1)}
+            canGoBack={index > 0}
+            nextLabel={nextLabel}
+            insight={insight}
+          />
           {/* Not a <main>: the reused interview screen renders its own. */}
           <div
             ref={stageRef}
@@ -198,19 +214,6 @@ export default function ProductTourPage() {
             />
             <Spotlight stageRef={stageRef} target={step.target} stepKey={stepKey} />
           </div>
-          <NarratorPanel
-            chapterNumber={railChapters.findIndex(c => c.id === chapter.id) + 1}
-            chapterLabel={chapter.label}
-            step={step}
-            stepIndex={position.stepIndex}
-            stepCount={chapter.steps.length}
-            done={done}
-            onBack={() => goTo(index - 1)}
-            onNext={() => goTo(index + 1)}
-            canGoBack={index > 0}
-            nextLabel={nextLabel}
-            insight={insight}
-          />
         </div>
       )}
     </div>
