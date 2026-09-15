@@ -3,9 +3,14 @@ import { ArrowIcon, DISPLAY, MONO } from '../../adaptive-interview/components/pr
 
 /**
  * The narrator: what the viewer is looking at and why it matters, one step at
- * a time. A column on the right at desktop widths, a strip under the stage on
- * smaller ones. The chapter's live "insight" (captured events, what the
- * interviewer read) sits under the copy.
+ * a time. A column on the LEFT at desktop widths, ABOVE the stage on smaller
+ * ones — deliberately, not just for symmetry with a left-nav convention: in a
+ * left-to-right reading pattern, this puts the copy first in reading order,
+ * so a reader meets "here's what you're about to see" before their eye ever
+ * reaches the stage. That is a stronger cue than the spotlight's entrance
+ * delay alone (see .tour-spotlight in index.css) — position beats timing.
+ * The chapter's live "insight" (captured events, what the interviewer read)
+ * sits under the copy.
  */
 export default function NarratorPanel({
   chapterNumber,
@@ -25,7 +30,7 @@ export default function NarratorPanel({
   return (
     <aside
       aria-label="Tour guide"
-      className="flex max-h-[46vh] shrink-0 flex-col border-t lg:max-h-none lg:w-[340px] lg:border-l lg:border-t-0"
+      className="flex max-h-[46vh] shrink-0 flex-col border-b lg:max-h-none lg:w-[340px] lg:border-b-0 lg:border-r"
       style={{ background: 'var(--lp-surface)', borderColor: 'var(--lp-line)' }}
     >
       <div className="shrink-0 px-5 pb-4 pt-4 lg:px-6 lg:pt-6">
