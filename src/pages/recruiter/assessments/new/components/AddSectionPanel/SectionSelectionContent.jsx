@@ -34,9 +34,9 @@ export function SectionSelectionContent({ currentStep, onAddSection }) {
         <StepProgress currentStep={currentStep} />
 
         <div className="mt-[36px]">
-          <h2 className="text-[22px] font-bold leading-[28px] text-text-primary">Assessment details</h2>
+          <h2 className="text-[22px] font-bold leading-[28px] text-text-primary">Add a section</h2>
           <p className="mt-[4px] text-[14px] leading-[20px] text-text-secondary">
-            This information is shown to candidates before they begin.
+            Choose the type of question you want to add next.
           </p>
         </div>
 
