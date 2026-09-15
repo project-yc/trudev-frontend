@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Zap } from 'lucide-react'
+import { IconMicrophone, IconPlayerStopFilled } from '@tabler/icons-react'
+import { cn } from '../../lib/utils'
+import { useDictation } from './adaptive-interview/useDictation'
 import {
   autosaveFreeTextRuntime,
   autosaveMcqRuntime,
@@ -9,12 +12,14 @@ import {
   getFreeTextRuntime,
   getMcqRuntime,
   getRankingRuntime,
+  getReflectionRuntime,
   loadCandidateRuntimeState,
   normalizeCandidateRuntimeState,
   saveCandidateRuntimeState,
   submitFreeTextRuntime,
   submitMcqRuntime,
   submitRankingRuntime,
+  submitReflectionRuntime,
 } from '../../api/candidate/runtime'
 import { CandidateBootScreen, TOTAL_BOOT_MS } from '../../components/candidate/CandidateBootScreen'
 import {
@@ -189,6 +194,66 @@ function CandidateSectionReviewScreen({
   )
 }
 
+// One reflection question: a labelled textarea plus voice dictation, matching
+// the adaptive interview composer (same useDictation hook + mic affordance).
+// Speech goes INTO the textarea so the candidate reads and edits before
+// submitting — the written answer is what gets graded.
+function ReflectionAnswerField({ index, question, value, onChange, disabled, language }) {
+  const dictation = useDictation({
+    onCommit: (phrase) => onChange(value ? `${value} ${phrase}` : phrase),
+    language,
+  })
+  const { listening, interim, error, supported, toggle } = dictation
+
+  return (
+    <div className="border border-border-default bg-surface rounded-xl p-6 space-y-3">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-sm font-semibold text-text-primary">
+          <span className="text-text-muted mr-2">{index + 1}.</span>
+          {question}
+        </p>
+        {supported && (
+          <button
+            type="button"
+            onClick={toggle}
+            disabled={disabled}
+            aria-pressed={listening}
+            aria-label={listening ? 'Stop voice input' : 'Answer using your voice'}
+            title={listening ? 'Stop voice input' : 'Answer using your voice'}
+            className={cn(
+              'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors duration-150',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
+              listening
+                ? 'cand-mic-live bg-brand text-on-brand'
+                : 'bg-surface-raised text-text-secondary hover:bg-surface-hover hover:text-text-primary',
+              disabled && 'cursor-not-allowed opacity-60',
+            )}
+          >
+            {listening ? <IconPlayerStopFilled size={15} /> : <IconMicrophone size={17} />}
+          </button>
+        )}
+      </div>
+      <textarea
+        className="w-full min-h-32 bg-surface-muted border border-border-default rounded-xl p-3 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand-border"
+        placeholder="Write a few sentences…"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        disabled={disabled}
+      />
+      {/* Reserved line so committing a phrase or an error never shifts layout. */}
+      <div className="min-h-[18px] px-1 text-[12px] leading-[1.5]">
+        {error ? (
+          <span role="alert" className="text-warning">{error}</span>
+        ) : listening ? (
+          <span aria-live="polite" className="text-text-muted">{interim || 'Listening…'}</span>
+        ) : supported ? (
+          <span className="text-text-faint">Tap the mic to speak instead of typing.</span>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
 export default function CandidateSectionRuntimePage() {
     const { instanceId, sectionId } = useParams()
     const location = useLocation()
@@ -203,6 +268,13 @@ export default function CandidateSectionRuntimePage() {
     const [selectedOptionIds, setSelectedOptionIds] = useState([])
     const [freeTextValue, setFreeTextValue] = useState('')
     const [rankingOptions, setRankingOptions] = useState([])
+    // Standalone reflection step after a coding submit (branch 1): the section is
+    // not truly complete until these are answered. Questions come from the
+    // backend (candidate-safe, no grading anchors); answers post back and then
+    // the normal post-submit transition runs.
+    const [reflectionQuestions, setReflectionQuestions] = useState(null)
+    const [reflectionAnswers, setReflectionAnswers] = useState({})
+    const [reflectionSubmitting, setReflectionSubmitting] = useState(false)
     // The IDE sends the candidate here after a cold pause; the workspace is
     // gone and must be relaunched on Resume — not on landing, or the clock
     // would restart before the candidate chose to continue.
@@ -274,6 +346,36 @@ export default function CandidateSectionRuntimePage() {
 
           if (!nextRuntime?.sectionToken) {
             throw new Error('Missing section token for candidate runtime')
+          }
+
+          // Standalone reflection gate: after a coding submit, if this section
+          // collects reflection answers and they aren't in yet, show the
+          // reflection page before advancing. Best-effort — a fetch failure
+          // never traps the candidate; it falls through to the normal flow.
+          if (returningFromCodingSubmit && nextRuntime.currentItemAttemptId) {
+            try {
+              const reflection = await getReflectionRuntime(
+                nextRuntime.currentItemAttemptId,
+                nextRuntime.sectionToken,
+              )
+              if (
+                reflection?.expected
+                && Array.isArray(reflection.questions)
+                && reflection.questions.length > 0
+                && !reflection.submitted
+              ) {
+                setRuntimeState(nextRuntime)
+                saveCandidateRuntimeState(nextRuntime)
+                clearSensitiveUrlParams()
+                clearSubmissionTransitionParams()
+                setReflectionQuestions(reflection.questions)
+                setReflectionAnswers({})
+                setScreen('reflection')
+                return
+              }
+            } catch {
+              // Reflection is an enhancement, not a gate on connectivity.
+            }
           }
 
           if (returningFromCodingPause) {
@@ -540,6 +642,36 @@ export default function CandidateSectionRuntimePage() {
       }
     }
 
+    const allReflectionAnswered = Array.isArray(reflectionQuestions)
+      && reflectionQuestions.every((q) => (reflectionAnswers[q.id] || '').trim().length > 0)
+
+    const submitReflectionAndAdvance = async () => {
+      if (!runtimeState || !Array.isArray(reflectionQuestions)) {
+        return
+      }
+      setReflectionSubmitting(true)
+      setError('')
+      try {
+        const responses = reflectionQuestions.map((q) => ({
+          id: q.id,
+          answer: (reflectionAnswers[q.id] || '').trim(),
+        }))
+        await submitReflectionRuntime(
+          runtimeState.currentItemAttemptId,
+          runtimeState.sectionToken,
+          responses,
+        )
+        // Answers are in — run the normal post-coding-submit transition.
+        setScreen('submitting')
+        const nextAction = await getCandidateNextAction(instanceId, runtimeState.sectionToken)
+        handleNextAction(nextAction)
+      } catch (reflectionError) {
+        setError(reflectionError.message || 'Could not submit your answers. Please try again.')
+        setScreen('reflection')
+        setReflectionSubmitting(false)
+      }
+    }
+
   const getReviewAnswerPreview = () => {
     if (runtimeState?.contentType === 'free_text') {
       return freeTextValue?.trim()
@@ -701,6 +833,55 @@ export default function CandidateSectionRuntimePage() {
         onSubmit={submitSection}
         submitting={submitting}
       />
+    )
+  }
+
+  if (screen === 'reflection' && Array.isArray(reflectionQuestions)) {
+    return (
+      <div className="min-h-screen bg-page text-text-primary p-6">
+        <div className="max-w-3xl mx-auto space-y-6 animate-slideInUp">
+          <div className="text-center space-y-2">
+            <p className="text-brand-deep text-xs font-semibold uppercase tracking-widest">Before you continue</p>
+            <h1 className="text-text-primary text-2xl font-bold tracking-tight">A few quick questions</h1>
+            <p className="text-text-secondary text-sm">
+              Your code is submitted. Answer these in your own words to finish the section — the code
+              isn&apos;t shown here, so just describe what you did and why.
+            </p>
+          </div>
+
+          {error ? <CandidateErrorBanner>{error}</CandidateErrorBanner> : null}
+
+          <div className="space-y-4">
+            {reflectionQuestions.map((reflectionQuestion, index) => (
+              <ReflectionAnswerField
+                key={reflectionQuestion.id}
+                index={index}
+                question={reflectionQuestion.question}
+                value={reflectionAnswers[reflectionQuestion.id] || ''}
+                onChange={(next) => setReflectionAnswers((current) => ({
+                  ...current,
+                  [reflectionQuestion.id]: next,
+                }))}
+                disabled={reflectionSubmitting}
+                language={runtimeState?.language}
+              />
+            ))}
+          </div>
+
+          <div className="flex justify-end">
+            <CandidatePrimaryButton
+              className="w-auto px-4 py-2"
+              onClick={submitReflectionAndAdvance}
+              disabled={reflectionSubmitting || !allReflectionAnswered}
+            >
+              {reflectionSubmitting ? 'Submitting…' : 'Submit & Continue'}
+            </CandidatePrimaryButton>
+          </div>
+          {!allReflectionAnswered ? (
+            <p className="text-center text-xs text-text-muted">Please answer all questions to continue.</p>
+          ) : null}
+        </div>
+      </div>
     )
   }
 

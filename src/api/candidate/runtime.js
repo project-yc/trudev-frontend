@@ -185,6 +185,21 @@ export const submitFreeTextRuntime = async (itemAttemptId, token, responseText) 
   })
 )
 
+// Standalone reflection page for a coding section, shown after the IDE submit.
+// GET returns whether the section expects reflection and the candidate-safe
+// questions (no grading anchors); POST stores the answers.
+export const getReflectionRuntime = async (itemAttemptId, token) => (
+  requestCandidate(`/api/v1/candidate/items/${itemAttemptId}/reflection`, token)
+)
+
+export const submitReflectionRuntime = async (itemAttemptId, token, responses) => (
+  requestCandidate(`/api/v1/candidate/items/${itemAttemptId}/reflection`, token, {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ responses }),
+  })
+)
+
 export const getRankingRuntime = async (itemAttemptId, token) => (
   requestCandidate(`/api/v1/candidate/items/${itemAttemptId}/ranking`, token)
 )
