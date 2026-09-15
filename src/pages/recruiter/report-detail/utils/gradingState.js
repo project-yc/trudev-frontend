@@ -84,7 +84,14 @@ export function getReportGradingState(report) {
  */
 export function getSectionGradingState(section, reportState) {
   const ungradedItems = Number(section?.ungraded_items) || 0;
-  if (ungradedItems > 0) {
+  // The server now scores each section on its own 0-100, already excluding
+  // pending/failed/skipped items — prefer it over recomputing from raw points.
+  const serverPct = toFiniteNumber(section?.section_percentage);
+
+  // Only a FULLY ungraded section (a failure with nothing salvageable) is
+  // flagged. If some items graded, the section still has a percentage over what
+  // WAS graded, so show that instead of a blanket "grading failed".
+  if (ungradedItems > 0 && serverPct === null) {
     return {
       state: GRADING_STATE.FAILED,
       percent: null,
@@ -96,12 +103,17 @@ export function getSectionGradingState(section, reportState) {
   const status = String(section?.status || '').toLowerCase();
   const score = toFiniteNumber(section?.score);
   const maxScore = toFiniteNumber(section?.max_score);
-  const hasPoints = score !== null && maxScore !== null && maxScore > 0;
+  const percent = serverPct !== null
+    ? Math.round(serverPct)
+    : (score !== null && maxScore !== null && maxScore > 0
+        ? Math.round((score / maxScore) * 100)
+        : null);
+  const hasScore = percent !== null;
 
   if (
     (reportState && reportState.state !== GRADING_STATE.GRADED)
     || (status && !FINAL_SECTION_STATUSES.has(status))
-    || !hasPoints
+    || !hasScore
   ) {
     return {
       state: GRADING_STATE.PENDING,
@@ -117,7 +129,7 @@ export function getSectionGradingState(section, reportState) {
 
   return {
     state: GRADING_STATE.GRADED,
-    percent: Math.round((score / maxScore) * 100),
+    percent,
     label: null,
     detail: null,
   };

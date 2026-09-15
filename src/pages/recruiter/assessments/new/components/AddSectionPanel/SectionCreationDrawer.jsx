@@ -255,6 +255,23 @@ function SectionDetailsStep({ drawerType, form, onCancel, onContinue, isEditing 
           </>
         )}
 
+        <label className="mt-[16px] block text-[15px] font-semibold leading-none text-text-primary">
+          Section weight
+        </label>
+        <input
+          type="number"
+          min="0"
+          step="0.5"
+          value={form.sectionWeight}
+          onChange={e => form.setSectionWeight(e.target.value === '' ? '' : Number(e.target.value))}
+          className="mt-[10px] h-[42px] w-full rounded-[8px] border border-border-default bg-surface px-[12px] text-[15px] font-medium text-text-primary"
+        />
+        <p className="mt-[6px] text-[13px] leading-[18px] text-text-muted">
+          How much this section counts toward the final score, relative to the others.
+          Each section is scored on its own 0-100%, and the total is the weighted average.
+          Default 1 = equal; set 0 to leave a section out of the score entirely.
+        </p>
+
         {drawerType === 'coding' && (
           <>
             <div className="mt-[16px] flex items-center gap-[7px]">

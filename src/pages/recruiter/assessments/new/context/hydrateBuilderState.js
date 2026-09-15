@@ -110,6 +110,7 @@ export function hydrateBuilderState(payload) {
       // derive it from whatever the section actually holds.
       type: deriveSectionType(section),
       timer_minutes: section.timer_minutes ?? null,
+      weight: section.weight ?? 1.0,
       expanded: true,
       items: (section.items || []).map(hydrateItem),
     })),

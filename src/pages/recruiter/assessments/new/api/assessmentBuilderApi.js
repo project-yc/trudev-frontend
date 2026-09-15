@@ -278,6 +278,7 @@ async function syncBuilderSections(state, { dispatch, ACTIONS }) {
       ...(section.backendId ? { id: section.backendId } : {}),
       name: section.name || 'Section',
       timer_minutes: section.timer_minutes ?? null,
+      weight: section.weight ?? 1.0,
       items: section.items.map(item => ({
         ...(item.backendItemId ? { id: item.backendItemId } : {}),
         ...(item.backendItemId

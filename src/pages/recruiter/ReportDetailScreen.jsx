@@ -198,6 +198,8 @@ function ScoreOverview({ report, sections, grading }) {
         section,
         grading: getSectionGradingState(section, grading),
         points: section.max_score ?? section.points ?? 0,
+        // Cross-section weight — how much this section counts toward the total.
+        weight: section.weight ?? 1,
       };
     })
     .filter(Boolean);
@@ -222,7 +224,7 @@ function ScoreOverview({ report, sections, grading }) {
         {/* Figma sizes each bar to its own label rather than using equal
             columns: 283 + 146 + 205 + 151 + 204 + 4x15 gaps = 1049. */}
         <div className="flex flex-wrap gap-[15px]">
-          {overviewItems.map(({ type, grading: sectionGrading, points }) => {
+          {overviewItems.map(({ type, grading: sectionGrading, weight }) => {
             const meta = getSectionMeta(type);
             const graded = sectionGrading.state === GRADING_STATE.GRADED;
             const displayPercent = graded ? sectionGrading.percent : 0;
@@ -242,7 +244,12 @@ function ScoreOverview({ report, sections, grading }) {
                   <span className={`h-[12px] w-[12px] rounded-full ${meta.dot}`} />
                   {graded ? (
                     <span className="text-[13px] font-bold text-text-primary">
-                      {formatScore(sectionGrading.percent)}% of {points} pts
+                      {formatScore(sectionGrading.percent)}%
+                      {Number(weight) !== 1 && (
+                        <span className="ml-[6px] text-[11px] font-semibold text-text-muted">
+                          weight {weight}
+                        </span>
+                      )}
                     </span>
                   ) : (
                     <span

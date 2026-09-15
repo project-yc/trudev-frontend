@@ -13,7 +13,14 @@ import { CODING_CONTENT_TYPES } from '../../constants/sectionPanels';
 function PendingPanel({ section }) {
   const score = Number(section?.score);
   const maxScore = Number(section?.max_score);
-  const hasScore = Number.isFinite(score) && Number.isFinite(maxScore) && maxScore > 0;
+  const serverPct = Number(section?.section_percentage);
+  // Prefer the server's normalized section percentage; fall back to raw points.
+  const percent = Number.isFinite(serverPct)
+    ? Math.round(serverPct)
+    : (Number.isFinite(score) && Number.isFinite(maxScore) && maxScore > 0
+        ? Math.round((score / maxScore) * 100)
+        : null);
+  const hasScore = percent !== null;
 
   return (
     <PanelBlock>
@@ -21,10 +28,12 @@ function PendingPanel({ section }) {
         <div className="rounded-[10px] border border-border-subtle bg-surface-hover px-[14px] py-[12px]">
           <p className="text-[12px] uppercase tracking-[0.08em] text-text-muted">Section score</p>
           <p className="mt-[6px] text-[26px] font-bold leading-none text-text-primary">
-            {Math.round((score / maxScore) * 100)}
+            {percent}
             <span className="text-[15px] font-semibold text-text-muted">/100</span>
           </p>
-          <p className="mt-[4px] text-[12px] text-text-muted">{score} of {maxScore} points</p>
+          {Number.isFinite(maxScore) && maxScore > 0 && (
+            <p className="mt-[4px] text-[12px] text-text-muted">{score} of {maxScore} points</p>
+          )}
         </div>
       )}
       <p className="mt-[14px] text-[13px] leading-[19px] text-text-secondary">

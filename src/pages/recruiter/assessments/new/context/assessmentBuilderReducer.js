@@ -128,6 +128,8 @@ export function assessmentBuilderReducer(state, action) {
         name: action.payload.name,
         type: action.payload.type,
         timer_minutes: action.payload.timer_minutes ?? null,
+        // Cross-section scoring weight (default 1.0 = every section counts equally).
+        weight: action.payload.weight ?? 1.0,
         ai_level_override: action.payload.ai_level_override ?? null,
         expanded: true,
         items: [],

@@ -55,6 +55,8 @@ export function useSectionCreationDrawer({ dispatch, ACTIONS, state }) {
   const [editingSectionId, setEditingSectionId] = useState(null);
   const [sectionName, setSectionName] = useState('');
   const [sectionTimer, setSectionTimer] = useState(DEFAULT_SECTION_TIMER);
+  // Cross-section scoring weight. Default 1.0 = every section counts equally.
+  const [sectionWeight, setSectionWeight] = useState(1);
   const [aiLevel, setAiLevel] = useState('chat_only');
   const [questionPrompt, setQuestionPrompt] = useState('');
   const [freeTextAnswer, setFreeTextAnswer] = useState('');
@@ -291,6 +293,9 @@ export function useSectionCreationDrawer({ dispatch, ACTIONS, state }) {
     setSectionTimer(
       Number.isFinite(savedTimer) && savedTimer > 0 ? savedTimer : defaultTimer,
     );
+    // Seed the weight from the saved section when editing; default 1.0 on create.
+    const savedWeight = Number(editedSection?.weight);
+    setSectionWeight(Number.isFinite(savedWeight) && savedWeight >= 0 ? savedWeight : 1);
 
     // The section carries the name and (for coding) the AI level; the rubric
     // weights live on the coding item, because that is where
@@ -713,6 +718,7 @@ export function useSectionCreationDrawer({ dispatch, ACTIONS, state }) {
           name: sectionName.trim() || fallbackSectionName,
           type: question.type,
           timer_minutes: Number(sectionTimer),
+          weight: Number(sectionWeight),
           ai_level_override: aiLevelOverride,
           items: [question],
         },
@@ -1118,6 +1124,7 @@ export function useSectionCreationDrawer({ dispatch, ACTIONS, state }) {
         updates: {
           name: sectionName.trim() || section.name,
           timer_minutes: Number(sectionTimer),
+          weight: Number(sectionWeight),
           ...(drawerType === 'coding' ? { ai_level_override: aiLevel || null } : {}),
         },
       },
@@ -1202,6 +1209,8 @@ export function useSectionCreationDrawer({ dispatch, ACTIONS, state }) {
       setSectionName,
       sectionTimer,
       setSectionTimer,
+      sectionWeight,
+      setSectionWeight,
       aiLevel,
       setAiLevel,
       questionPrompt,
