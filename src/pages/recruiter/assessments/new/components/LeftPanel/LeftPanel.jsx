@@ -86,7 +86,7 @@ export function LeftPanel() {
   };
 
   return (
-    <div className="w-full flex-shrink-0 overflow-hidden border-r border-border-subtle bg-surface md:w-[409px]">
+    <div className="hidden w-[409px] flex-shrink-0 overflow-hidden border-r border-border-subtle bg-surface lg:block">
       <div className="flex h-full min-w-0 flex-col overflow-hidden px-[18px] py-[18px]">
         <div className="flex min-w-0 items-center gap-[10px] text-[14px] font-bold leading-none">
           <span className="text-text-muted">Dashboard</span>
