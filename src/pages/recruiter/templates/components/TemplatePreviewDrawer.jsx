@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Clock, FileText, Layers, Target } from 'lucide-react';
+import { ChevronDown, Clock, Code2, FileText, Layers, Target } from 'lucide-react';
 import {
   Sheet,
   SheetContent,
@@ -44,14 +44,81 @@ function Stat({ icon, label, value }) {
 }
 
 /**
- * What the recruiter reads before committing: which sections, which questions,
- * what each is worth.
+ * MCQ/ranking/free-text prompt + option text, expanded inline — the same
+ * question content Task Library shows in its row, minus anything that gives
+ * the answer away. Never rendered for `technical_task` (that gets a "View
+ * code" link instead, reusing Task Library's read-only viewer) or
+ * `adaptive_interview` (nothing fixed to preview).
  *
- * Note what is deliberately absent — prompts, options and answer keys. This
+ * Note what is still deliberately absent — which MCQ option is correct, a
+ * ranking's correct order, and free-text grading hints/sample answers. This
  * catalogue is visible to every org on the platform, so the detail endpoint
- * does not serve the answers and this panel could not show them if it wanted to.
+ * never serves those, and this panel could not show them if it wanted to.
+ */
+function ItemDetail({ item }) {
+  if (item.mcq) {
+    return (
+      <div className="border-t border-border-subtle bg-page px-[14px] py-[10px]">
+        {item.mcq.prompt && (
+          <p className="text-[13px] leading-[18px] text-text-primary">{item.mcq.prompt}</p>
+        )}
+        {item.mcq.options.length > 0 && (
+          <ul className="mt-[8px] space-y-[4px]">
+            {item.mcq.options.map((opt, i) => (
+              <li key={opt.id || i} className="text-[12px] leading-[16px] text-text-secondary">
+                {String.fromCharCode(65 + i)}. {opt.text}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    );
+  }
+
+  if (item.ranking) {
+    return (
+      <div className="border-t border-border-subtle bg-page px-[14px] py-[10px]">
+        {item.ranking.prompt && (
+          <p className="text-[13px] leading-[18px] text-text-primary">{item.ranking.prompt}</p>
+        )}
+        {item.ranking.items.length > 0 && (
+          <ul className="mt-[8px] space-y-[4px]">
+            {item.ranking.items.map((opt, i) => (
+              <li key={opt.id || i} className="text-[12px] leading-[16px] text-text-secondary">
+                {opt.text}
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="mt-[8px] text-[11px] italic text-text-muted">
+          Shown in a fixed order here — the correct order isn't part of the preview.
+        </p>
+      </div>
+    );
+  }
+
+  if (item.freeText) {
+    return (
+      <div className="border-t border-border-subtle bg-page px-[14px] py-[10px]">
+        {item.freeText.prompt && (
+          <p className="text-[13px] leading-[18px] text-text-primary">{item.freeText.prompt}</p>
+        )}
+      </div>
+    );
+  }
+
+  return null;
+}
+
+/**
+ * What the recruiter reads before committing: which sections, which
+ * questions, what each is worth, and — for MCQ, ranking and free-text — the
+ * actual prompt and option text. Coding items link out to the same read-only
+ * "View code" viewer Task Library uses. See `ItemDetail` for what is
+ * deliberately still withheld.
  */
 export function TemplatePreviewDrawer({ template, open, onOpenChange, onUse, busy }) {
+  const [expandedItemId, setExpandedItemId] = useState(null);
   // Fetched state is tagged with the request it answered, so `loading` and
   // `error` are derived rather than set at the top of the effect. Same pattern
   // as useTemplateGallery — it keeps the effect free of synchronous setState,
@@ -168,22 +235,65 @@ export function TemplatePreviewDrawer({ template, open, onOpenChange, onUse, bus
                       )}
                     </div>
                     <ul className="divide-y divide-border-subtle">
-                      {section.items.map(item => (
-                        <li
-                          key={item.id}
-                          className="flex items-center justify-between gap-3 px-[14px] py-[10px]"
-                        >
-                          <div className="flex min-w-0 items-center gap-[8px]">
-                            <TypeBadge contentType={item.contentType} />
-                            <span className="truncate text-[13px] text-text-primary">
-                              {item.title}
-                            </span>
-                          </div>
-                          <span className="shrink-0 text-[12px] font-medium text-text-secondary">
-                            {item.points} pts
-                          </span>
-                        </li>
-                      ))}
+                      {section.items.map(item => {
+                        const hasDetail = Boolean(item.mcq || item.ranking || item.freeText);
+                        const isExpanded = expandedItemId === item.id;
+                        const isCoding = item.contentType === 'technical_task';
+
+                        return (
+                          <li key={item.id}>
+                            <div
+                              role={hasDetail ? 'button' : undefined}
+                              tabIndex={hasDetail ? 0 : undefined}
+                              onClick={hasDetail ? () => setExpandedItemId(isExpanded ? null : item.id) : undefined}
+                              onKeyDown={hasDetail ? (e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  setExpandedItemId(isExpanded ? null : item.id);
+                                }
+                              } : undefined}
+                              className={cn(
+                                'flex items-center justify-between gap-3 px-[14px] py-[10px]',
+                                hasDetail && 'cursor-pointer hover:bg-page',
+                              )}
+                            >
+                              <div className="flex min-w-0 items-center gap-[8px]">
+                                <TypeBadge contentType={item.contentType} />
+                                <span className="truncate text-[13px] text-text-primary">
+                                  {item.title}
+                                </span>
+                              </div>
+                              <div className="flex shrink-0 items-center gap-[10px]">
+                                <span className="text-[12px] font-medium text-text-secondary">
+                                  {item.points} pts
+                                </span>
+                                {isCoding && item.assessmentItemId && (
+                                  <a
+                                    href={`/recruiter/library/tasks/${item.assessmentItemId}/view`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="inline-flex items-center gap-[4px] text-[12px] font-medium text-brand hover:underline"
+                                  >
+                                    <Code2 className="h-[12px] w-[12px]" strokeWidth={2} />
+                                    View code
+                                  </a>
+                                )}
+                                {hasDetail && (
+                                  <ChevronDown
+                                    className={cn(
+                                      'h-[14px] w-[14px] text-text-muted transition-transform',
+                                      isExpanded && 'rotate-180',
+                                    )}
+                                    strokeWidth={2}
+                                  />
+                                )}
+                              </div>
+                            </div>
+                            {isExpanded && <ItemDetail item={item} />}
+                          </li>
+                        );
+                      })}
                     </ul>
                   </div>
                 ))}
