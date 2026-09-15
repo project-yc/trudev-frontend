@@ -348,12 +348,30 @@ function CodingTaskDetailDialog({ task, onClose }) {
   const description = manifest.description || manifest.instructions || manifest.summary || '';
   const sourceType = task.type_data?.source_type;
   const gitRepoUrl = task.type_data?.git_repo_url;
+
+  // Authoring guidance the task ships (recommendation, not enforced): which AI
+  // levels this task is designed for and a suggested time per level.
+  const AI_LEVEL_LABELS = {
+    none: 'No AI',
+    inline_completions: 'Inline completions',
+    chat_only: 'Chat only',
+    chat_guided: 'Chat (guided)',
+    full: 'Full AI',
+  };
+  const levelLabel = level => AI_LEVEL_LABELS[level] || level;
+  const recommendedLevels = Array.isArray(manifest.recommended_ai_levels)
+    ? manifest.recommended_ai_levels : [];
+  const timeByLevel = manifest.time_budget_by_level && typeof manifest.time_budget_by_level === 'object'
+    ? manifest.time_budget_by_level : {};
+  const timeByLevelEntries = Object.entries(timeByLevel).filter(([, mins]) => mins);
+
   const meta = [
     ['Difficulty', task.difficulty],
     ['Seniority', task.seniority],
     ['Domain', task.domain],
     ['Language', task.language || task.primary_language],
     ['Est. time', task.estimated_time_minutes ? `${task.estimated_time_minutes} min` : null],
+    ['Recommended AI level', recommendedLevels.length ? recommendedLevels.map(levelLabel).join(', ') : null],
     ['Source', sourceType === 'git' ? 'Git repository' : sourceType === 'local' ? 'Uploaded bundle' : null],
   ].filter(([, value]) => value);
   const tags = task.tags || [];
@@ -390,6 +408,32 @@ function CodingTaskDetailDialog({ task, onClose }) {
               </div>
             ))}
           </dl>
+        )}
+
+        {timeByLevelEntries.length > 0 && (
+          <div className="mt-[16px]">
+            <p className="text-[12px] font-medium uppercase tracking-wide text-text-muted">
+              Suggested time by AI level
+            </p>
+            <div className="mt-[6px] flex flex-wrap gap-[6px]">
+              {timeByLevelEntries.map(([level, mins]) => (
+                <span key={level} className="rounded-full border border-border-default bg-surface-muted px-[10px] py-[3px] text-[12px] font-medium text-text-secondary">
+                  {levelLabel(level)}: {mins} min
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {manifest.ai_level_rationale && (
+          <div className="mt-[16px]">
+            <p className="text-[12px] font-medium uppercase tracking-wide text-text-muted">
+              Why these levels
+            </p>
+            <p className="mt-[6px] max-h-[140px] overflow-y-auto whitespace-pre-wrap text-[13px] leading-[19px] text-text-secondary">
+              {manifest.ai_level_rationale}
+            </p>
+          </div>
         )}
 
         {gitRepoUrl && (
