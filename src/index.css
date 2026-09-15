@@ -657,22 +657,47 @@
    PRODUCT TOUR (/tour)
    ═══════════════════════════════════════════════════════ */
 
-/* The ring around whatever the current step is about. It glides between
-   targets rather than jumping, and breathes once it arrives. */
+/* The ring around whatever the current step is about.
+   It used to breathe forever, which meant it never stopped competing with the
+   narrator copy for attention — motion always wins that fight. Now it gets ONE
+   pulse to say "look here" when it lands on a new target, then holds still at
+   a quiet rest state for the remainder of the step (~1.76s total from the step
+   starting to the ring going quiet). The narrator's step text already starts
+   fading in on render; the 240ms delay here (tourSpotlightIn) means the ring
+   itself is still invisible while that first reads, so the eye meets copy
+   before location — and now the narrator sits on the READING side of the
+   layout (left, in front of the stage) rather than relying on timing alone.
+   Spotlight.jsx clears its rect on every step change, so this element is a
+   genuinely fresh DOM node each time (not just repositioned) — that is what
+   makes the animation replay per step rather than firing once ever. */
 .tour-spotlight {
-  border: 2px solid rgba(255, 133, 40, 0.9);
+  border: 2px solid rgba(255, 133, 40, 0.55);
   box-shadow:
-    0 0 0 4px rgba(255, 133, 40, 0.16),
-    0 0 36px -6px rgba(255, 107, 0, 0.55);
+    0 0 0 3px rgba(255, 133, 40, 0.09),
+    0 0 20px -8px rgba(255, 107, 0, 0.34);
   transition: top 380ms cubic-bezier(0.16, 1, 0.3, 1),
               left 380ms cubic-bezier(0.16, 1, 0.3, 1),
               width 380ms cubic-bezier(0.16, 1, 0.3, 1),
               height 380ms cubic-bezier(0.16, 1, 0.3, 1);
-  animation: tourSpotlightBreathe 2.4s ease-in-out infinite;
+  animation:
+    tourSpotlightIn 320ms cubic-bezier(0.16, 1, 0.3, 1) 240ms both,
+    tourSpotlightPulse 1.2s ease-in-out 560ms 1 both;
 }
-@keyframes tourSpotlightBreathe {
-  0%, 100% { box-shadow: 0 0 0 4px rgba(255, 133, 40, 0.16), 0 0 36px -6px rgba(255, 107, 0, 0.55); }
-  50%      { box-shadow: 0 0 0 7px rgba(255, 133, 40, 0.08), 0 0 44px -4px rgba(255, 107, 0, 0.7); }
+@keyframes tourSpotlightIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+/* Opacity is NOT touched here — only glow/border intensity — so this reads
+   as "brighten, then calm down" rather than a flicker in and out. */
+@keyframes tourSpotlightPulse {
+  0% {
+    border-color: rgba(255, 133, 40, 0.95);
+    box-shadow: 0 0 0 5px rgba(255, 133, 40, 0.22), 0 0 42px -4px rgba(255, 107, 0, 0.75);
+  }
+  50%, 100% {
+    border-color: rgba(255, 133, 40, 0.55);
+    box-shadow: 0 0 0 3px rgba(255, 133, 40, 0.09), 0 0 20px -8px rgba(255, 107, 0, 0.34);
+  }
 }
 
 /* "Next" asks for the click only once the step has finished playing. */
