@@ -48,12 +48,18 @@ function normalizePreview(preview = {}) {
       isRequired: section.is_required !== false,
       items: (section.items || []).map(item => ({
         id: item.id,
+        assessmentItemId: item.assessment_item_id,
         title: item.title || 'Untitled question',
         contentType: item.content_type,
         difficulty: item.difficulty || '',
         language: item.language || '',
         points: item.points ?? 0,
         estimatedTimeMinutes: item.estimated_time_minutes ?? null,
+        // Prompt/option text only — never an answer key. See
+        // `preset_preview.py` on the backend for what is deliberately excluded.
+        mcq: item.mcq ? { prompt: item.mcq.prompt || '', options: item.mcq.options || [] } : null,
+        ranking: item.ranking ? { prompt: item.ranking.prompt || '', items: item.ranking.items || [] } : null,
+        freeText: item.free_text ? { prompt: item.free_text.prompt || '' } : null,
       })),
     })),
   };
