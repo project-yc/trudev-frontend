@@ -5,8 +5,16 @@
 // sees: the AI assistant, the terminal, the clock and Submit. Everything on
 // screen is derived from `view` (see tourScript.js); nothing here keeps its
 // own copy of the story.
+//
+// The file explorer is genuinely interactive — the tree and tab strip are the
+// SAME TreeRow the recruiter's read-only TaskCodeViewPage uses, wired to local
+// state — so a visitor can click around the actual repo instead of only
+// watching the script. That local state is scoped to `stepKey` and reset
+// whenever it changes (same pattern as the picker in ReportChapter and
+// FormatsChapter): exploring never derails the story, it just gets put back
+// once the tour moves on.
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { EditorView } from '@codemirror/view';
 import { AnimatePresence, motion as Motion, useReducedMotion } from 'motion/react';
@@ -14,7 +22,7 @@ import { BookText, CheckCircle2, ChevronDown, ChevronRight, Clock, Files, GitBra
 
 import { VSC, vscodeDark } from '../../../recruiter/vscodeTheme.js';
 import { LANGUAGE_EXTENSIONS, allDirectoryPaths, buildTree } from '../../../recruiter/vscodeTree.js';
-import { ActivityButton, FileIcon, SidebarSectionHeader, VscMarkdown } from '../../../recruiter/vscodeParts.jsx';
+import { ActivityButton, FileIcon, SidebarSectionHeader, TreeRow, VscMarkdown } from '../../../recruiter/vscodeParts.jsx';
 import { formatTime } from '../../../../components/candidate/exam/ExamTimer';
 import { TASK_FILES, TASK_META } from '../fixtures/codingTask';
 import { useCountdown } from '../tourHooks';
@@ -23,43 +31,8 @@ import MockTerminal from '../components/MockTerminal';
 
 const LANGUAGE_BY_PATH = Object.fromEntries(TASK_FILES.map(f => [f.path, f.language]));
 const TREE = buildTree(TASK_FILES);
-const EXPANDED = allDirectoryPaths(TASK_FILES);
+const ALL_DIR_PATHS = allDirectoryPaths(TASK_FILES);
 const noop = () => {};
-
-function ExplorerNode({ node, depth, activePath, modified }) {
-  const isDir = node.type === 'dir';
-  const isActive = !isDir && node.path === activePath;
-  const isModified = !isDir && modified.includes(node.path);
-
-  return (
-    <li>
-      <div
-        className="flex h-[22px] items-center gap-1 pr-2 text-[13px]"
-        style={{
-          paddingLeft: `${depth * 10 + 8}px`,
-          background: isActive ? VSC.listSelected : 'transparent',
-          color: isModified ? '#E2C08D' : isActive ? VSC.fgBright : '#CCCCCC',
-        }}
-      >
-        {isDir
-          ? (EXPANDED.has(node.path)
-            ? <ChevronDown className="h-4 w-4 shrink-0" style={{ color: VSC.fgMuted }} />
-            : <ChevronRight className="h-4 w-4 shrink-0" style={{ color: VSC.fgMuted }} />)
-          : <span className="w-4 shrink-0" />}
-        {!isDir && <FileIcon path={node.path} className="h-[15px] w-[15px] shrink-0" />}
-        <span className="truncate">{node.name}</span>
-        {isModified && <span className="ml-auto text-[11px] font-semibold">M</span>}
-      </div>
-      {isDir && EXPANDED.has(node.path) && (
-        <ul>
-          {node.children.map(child => (
-            <ExplorerNode key={child.path} node={child} depth={depth + 1} activePath={activePath} modified={modified} />
-          ))}
-        </ul>
-      )}
-    </li>
-  );
-}
 
 function EditorPane({ path, content }) {
   const language = LANGUAGE_BY_PATH[path];
@@ -140,10 +113,48 @@ function GradeOverlay({ grade }) {
   );
 }
 
-export default function CodingChapter({ view, company, role }) {
+export default function CodingChapter({ view, company, role, stepKey }) {
   const remaining = useCountdown(74 * 60 + 12, !view.submitted);
-  const content = view.files[view.active] ?? '';
-  const pathSegments = view.active.split('/');
+
+  const [expanded, setExpanded] = useState(() => new Set(ALL_DIR_PATHS));
+  const toggleDir = path => setExpanded(prev => {
+    const next = new Set(prev);
+    if (next.has(path)) next.delete(path); else next.add(path);
+    return next;
+  });
+
+  // Manual exploration, layered on top of the script. Reset synchronously
+  // during render (not in an effect — see the same pattern in Spotlight.jsx)
+  // whenever `stepKey` changes, so clicking around never survives past the
+  // step the visitor was on when they clicked.
+  const [exploredFor, setExploredFor] = useState(stepKey);
+  const [explorePath, setExplorePath] = useState(null);
+  const [exploreTabs, setExploreTabs] = useState([]);
+  if (exploredFor !== stepKey) {
+    setExploredFor(stepKey);
+    setExplorePath(null);
+    setExploreTabs([]);
+  }
+
+  const activePath = explorePath || view.active;
+  const openTabs = useMemo(
+    () => [...view.openTabs, ...exploreTabs.filter(p => !view.openTabs.includes(p))],
+    [view.openTabs, exploreTabs],
+  );
+  const modifiedPaths = useMemo(() => new Set(view.modified), [view.modified]);
+
+  const openFile = path => {
+    setExplorePath(path);
+    setExploreTabs(prev => (prev.includes(path) || view.openTabs.includes(path) ? prev : [...prev, path]));
+  };
+  const closeTab = (path, event) => {
+    event.stopPropagation();
+    setExploreTabs(prev => prev.filter(p => p !== path));
+    setExplorePath(prev => (prev === path ? null : prev));
+  };
+
+  const content = view.files[activePath] ?? '';
+  const pathSegments = activePath.split('/');
 
   return (
     <div className="flex h-full flex-col" style={{ background: VSC.editorBg, color: VSC.fg }}>
@@ -200,7 +211,16 @@ export default function CodingChapter({ view, company, role }) {
           </div>
           <ul className="min-h-0 flex-1 overflow-y-auto py-1">
             {TREE.map(node => (
-              <ExplorerNode key={node.path} node={node} depth={0} activePath={view.active} modified={view.modified} />
+              <TreeRow
+                key={node.path}
+                node={node}
+                depth={0}
+                activePath={activePath}
+                expanded={expanded}
+                onToggle={toggleDir}
+                onSelect={openFile}
+                modifiedPaths={modifiedPaths}
+              />
             ))}
           </ul>
         </aside>
@@ -209,13 +229,22 @@ export default function CodingChapter({ view, company, role }) {
         <main className="flex min-w-0 flex-1 flex-col">
           <div data-tour="editor" className="flex min-h-0 flex-1 flex-col">
             <div className="flex shrink-0 items-stretch overflow-x-auto" style={{ background: VSC.sidebarBg }}>
-              {view.openTabs.map(path => {
-                const active = path === view.active;
+              {openTabs.map(path => {
+                const active = path === activePath;
                 const modified = view.modified.includes(path);
+                // Only tabs the visitor opened themselves can be closed — a
+                // scripted tab closing mid-story would strand the narrative.
+                const closable = !view.openTabs.includes(path);
                 return (
                   <div
                     key={path}
-                    className="relative flex h-[35px] items-center gap-1.5 whitespace-nowrap border-r pl-3 pr-2 text-[13px]"
+                    role="tab"
+                    aria-selected={active}
+                    tabIndex={0}
+                    onClick={() => setExplorePath(path)}
+                    onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && setExplorePath(path)}
+                    title={path}
+                    className="group relative flex h-[35px] cursor-pointer items-center gap-1.5 whitespace-nowrap border-r pl-3 pr-2 text-[13px] focus:outline-none focus-visible:ring-1 focus-visible:ring-inset"
                     style={{
                       background: active ? VSC.tabActiveBg : VSC.tabInactiveBg,
                       color: modified ? '#E2C08D' : active ? VSC.fgBright : '#8F8F8F',
@@ -225,9 +254,20 @@ export default function CodingChapter({ view, company, role }) {
                     {active && <span className="absolute left-0 right-0 top-0 h-px" style={{ background: VSC.accent }} />}
                     <FileIcon path={path} className="h-[15px] w-[15px] shrink-0" />
                     <span>{LANGUAGE_BY_PATH[path] === 'markdown' ? `Preview ${path.split('/').pop()}` : path.split('/').pop()}</span>
-                    {modified
-                      ? <span className="ml-1 h-2 w-2 rounded-full" style={{ background: '#E2C08D' }} />
-                      : <X className="ml-1 h-3.5 w-3.5 opacity-60" />}
+                    {closable ? (
+                      <button
+                        type="button"
+                        onClick={e => closeTab(path, e)}
+                        aria-label={`Close ${path}`}
+                        className="ml-1 flex h-4 w-4 shrink-0 items-center justify-center rounded opacity-70 hover:bg-white/10 hover:opacity-100"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    ) : modified ? (
+                      <span className="ml-1 h-2 w-2 shrink-0 rounded-full" style={{ background: '#E2C08D' }} />
+                    ) : (
+                      <X className="ml-1 h-3.5 w-3.5 shrink-0 opacity-60" />
+                    )}
                   </div>
                 );
               })}
@@ -241,7 +281,7 @@ export default function CodingChapter({ view, company, role }) {
               ))}
             </div>
             <div className="relative min-h-0 flex-1 overflow-hidden">
-              <EditorPane path={view.active} content={content} />
+              <EditorPane path={activePath} content={content} />
               <AnimatePresence>{view.grade && <GradeOverlay grade={view.grade} />}</AnimatePresence>
             </div>
           </div>
