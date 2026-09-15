@@ -1,16 +1,9 @@
 import { useEffect, useState } from 'react';
 
-// Steps name their target with a `data-tour` id. The two targets inside the
-// reused candidate interview screen can't carry one without touching that
-// production component, so they are found by structure instead.
-const TARGET_SELECTORS = {
-  'interview-chat': 'main',
-  'interview-scenario': 'aside',
-};
-
+// Steps name their target with a `data-tour` id.
 function findTarget(stage, target) {
   if (!stage || !target) return null;
-  return stage.querySelector(TARGET_SELECTORS[target] || `[data-tour="${target}"]`);
+  return stage.querySelector(`[data-tour="${target}"]`);
 }
 
 const PAD = 6;
@@ -72,6 +65,20 @@ const same = (a, b) => (
  */
 export default function Spotlight({ stageRef, target, stepKey }) {
   const [rect, setRect] = useState(null);
+  // Adjusted during render, not inside the effect below — React's documented
+  // pattern for "reset this state when a prop changes" avoids the extra
+  // render pass that setState-in-effect would cause.
+  //
+  // Dropping the previous step's rect here, rather than gliding it to the new
+  // target, is what makes the CSS entrance/pulse animation (.tour-spotlight in
+  // index.css) replay on every step instead of firing once on first mount: it
+  // forces the `!rect` branch below to return null for a beat, so the div that
+  // appears once the new target is measured is a genuinely fresh DOM node.
+  const [measuredFor, setMeasuredFor] = useState(stepKey);
+  if (measuredFor !== stepKey) {
+    setMeasuredFor(stepKey);
+    setRect(null);
+  }
 
   useEffect(() => {
     const stage = stageRef.current;
