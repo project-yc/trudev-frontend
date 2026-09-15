@@ -30,11 +30,19 @@ export function FileIcon({ path, className }) {
   return <Icon className={className} style={{ color: match ? match[2] : VSC.fgMuted }} />;
 }
 
-export function TreeRow({ node, depth, activePath, expanded, onToggle, onSelect }) {
+const NO_MODIFIED_PATHS = new Set();
+
+// `modifiedPaths` is optional and only used by the public tour's mock IDE
+// (CodingChapter.jsx), which lets the viewer edit files as the scripted story
+// plays out and wants that reflected in the tree, the way a real editor would.
+// Defaults to empty, so the recruiter's read-only TaskCodeViewPage — which
+// never has unsaved changes — is unaffected.
+export function TreeRow({ node, depth, activePath, expanded, onToggle, onSelect, modifiedPaths = NO_MODIFIED_PATHS }) {
   const isDir = node.type === 'dir';
   const isOpen = isDir && expanded.has(node.path);
   const isActive = !isDir && node.path === activePath;
   const isReadable = isDir || node.file.content !== null;
+  const isModified = !isDir && modifiedPaths.has(node.path);
 
   const row = (
     <button
@@ -46,7 +54,7 @@ export function TreeRow({ node, depth, activePath, expanded, onToggle, onSelect 
       style={{
         paddingLeft: `${depth * 10 + 8}px`,
         background: isActive ? VSC.listSelected : 'transparent',
-        color: isActive ? VSC.fgBright : isReadable ? '#CCCCCC' : VSC.fgFaint,
+        color: isModified ? '#E2C08D' : isActive ? VSC.fgBright : isReadable ? '#CCCCCC' : VSC.fgFaint,
         fontFamily: 'inherit',
       }}
       className="group w-full flex items-center gap-1 h-[22px] pr-2 text-[13px] text-left transition-colors duration-75 hover:bg-[#2A2D2E] focus:outline-none focus-visible:ring-1 focus-visible:ring-[#007FD4] focus-visible:ring-inset"
@@ -65,6 +73,7 @@ export function TreeRow({ node, depth, activePath, expanded, onToggle, onSelect 
             <FileIcon path={node.path} className="w-[15px] h-[15px] flex-shrink-0" />
             <span className="truncate">{node.name}</span>
             {!isReadable && <Lock className="w-3 h-3 ml-auto flex-shrink-0 opacity-50" />}
+            {isModified && <span className="ml-auto flex-shrink-0 text-[11px] font-semibold">M</span>}
           </>
         )}
     </button>
@@ -84,6 +93,7 @@ export function TreeRow({ node, depth, activePath, expanded, onToggle, onSelect 
               expanded={expanded}
               onToggle={onToggle}
               onSelect={onSelect}
+              modifiedPaths={modifiedPaths}
             />
           ))}
         </ul>
