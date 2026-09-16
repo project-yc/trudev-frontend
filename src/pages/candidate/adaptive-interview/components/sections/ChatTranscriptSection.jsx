@@ -39,7 +39,7 @@ export default function ChatTranscriptSection({ section }) {
                   </span>
                 )}
               </div>
-              <p className="border-l-2 border-border-default pl-2.5 text-[12.5px] leading-[1.55] text-text-secondary">
+              <p className="border-l-2 border-border pl-2.5 text-[12.5px] leading-[1.55] text-text-secondary">
                 {message?.text}
               </p>
             </div>
