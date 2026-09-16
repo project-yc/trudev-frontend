@@ -1,10 +1,14 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // QuestionStage — one question, given the whole stage.
 //
-// Heading, rule, prompt, answer: the reading order of an exam paper, identical
+// Label, prompt, rule, answer: the reading order of an exam paper, identical
 // for every question type. Only the answer body changes — MCQ options, a
 // written response, or a ranking list — so moving between section types never
 // feels like moving between products.
+//
+// The prompt is the heading. The ordinal ("Question 3 / 25") is the quiet label
+// above it, and carries the denominator so the candidate's position is legible
+// on a phone, where the navigator rail is behind a button.
 //
 // The stage slides in from the direction the candidate navigated, which is what
 // makes the flow read as movement rather than replacement. It is a keyed
@@ -57,6 +61,7 @@ function TypeBadge({ contentType, multi }) {
 export default function QuestionStage({
   question,
   index,
+  total,
   contentType = 'mcq',
   answer,
   onAnswerChange,
@@ -130,9 +135,15 @@ export default function QuestionStage({
       transition={{ duration: reduceMotion ? 0 : 0.26, ease: EASE }}
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-[21px] font-semibold tracking-[-0.02em] text-text-primary">
+        {/* The ordinal is a label, not the headline. It used to be an `<h1>` at
+            21px in `text-primary` while the question itself sat underneath at
+            14px in `text-secondary` — the brightest, largest thing on screen
+            said "Question 3" and the thing the candidate actually had to read
+            was dimmed. The two have swapped weight. */}
+        <p className="text-[12.5px] font-semibold uppercase tracking-[0.12em] text-text-muted">
           Question {index + 1}
-        </h1>
+          {total ? <span className="text-text-faint"> / {total}</span> : null}
+        </p>
 
         <div className="flex items-center gap-2">
           <TypeBadge contentType={contentType} multi={multi} />
@@ -144,17 +155,16 @@ export default function QuestionStage({
         </div>
       </div>
 
-      <div className="mt-4 h-px w-full bg-border-subtle" />
-
       {q ? (
         <>
-          <p className="mt-6 whitespace-pre-line text-[14px] leading-[1.7] text-text-secondary">
+          <h1 className="mt-3.5 whitespace-pre-line text-[19px] font-medium leading-[1.5] tracking-[-0.015em] text-text-primary lg:text-[20px]">
             {q.prompt}
-          </p>
+          </h1>
+          <div className="mt-6 h-px w-full bg-border-subtle" />
           <div className="mt-6">{renderAnswer()}</div>
         </>
       ) : (
-        <div className="mt-6 rounded-xl border border-error-border bg-error-bg px-4 py-4 text-[13px] text-error">
+        <div className="mt-5 rounded-xl border border-error-border bg-error-bg px-4 py-4 text-[13px] text-error">
           This question didn&apos;t load. Move on to the next one — you can come back to it from
           the navigator before you finish.
         </div>
