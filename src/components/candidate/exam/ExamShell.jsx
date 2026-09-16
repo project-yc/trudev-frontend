@@ -113,6 +113,14 @@ export function ExamProgress({ value = 0, total = 0 }) {
  * @param heightClassName  the shell's height. Full viewport by default; the
  *                         public product tour mounts a screen under its own
  *                         top bar and passes `h-full` instead.
+ * @param centerStage      vertically centers a stage shorter than the viewport.
+ *                         `safe center` rather than plain `center`: a stage
+ *                         TALLER than the scroll area would otherwise be
+ *                         clipped at the top with no way to scroll back up to
+ *                         it. Off by default — the question screen leaves it
+ *                         off on purpose, because centering makes the stage
+ *                         jump vertically between two questions of different
+ *                         heights.
  */
 export default function ExamShell({
   branding,
@@ -127,6 +135,7 @@ export default function ExamShell({
   footer,
   mainClassName = '',
   heightClassName = 'h-screen',
+  centerStage = false,
 }) {
   const rail = sidebar && sidebarPosition === 'right'
 
@@ -142,8 +151,14 @@ export default function ExamShell({
             {ambient}
             {progress}
 
-            <main className={cn('cand-scroll relative z-10 min-h-0 flex-1 overflow-y-auto', mainClassName)}>
-              <div className={cn('mx-auto w-full max-w-[680px] px-5 py-8 lg:px-6 lg:py-9', contentClassName)}>
+            <main
+              className={cn(
+                'cand-scroll relative z-10 min-h-0 flex-1 overflow-y-auto',
+                centerStage && 'flex flex-col [justify-content:safe_center]',
+                mainClassName,
+              )}
+            >
+              <div className={cn('mx-auto w-full max-w-[720px] px-5 py-8 lg:px-6 lg:py-9', contentClassName)}>
                 {children}
               </div>
             </main>
