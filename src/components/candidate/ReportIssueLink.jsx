@@ -30,6 +30,28 @@ const resolveSource = (pathname) => {
   return 'other'
 }
 
+/**
+ * Who is reporting. The ROUTE wins: on the pre-start pages the invite token in
+ * the URL is the only trustworthy identity, and on the section / completion
+ * pages the instance id in the URL is. The runtime state in sessionStorage
+ * can belong to an earlier assessment taken in the same tab, so its token is
+ * only used when it is for the instance the URL names.
+ */
+const resolveReportIdentity = (params, runtimeState) => {
+  if (params.token) {
+    return { inviteToken: params.token, sectionToken: null, assessmentInstanceId: null }
+  }
+  const routeInstanceId = params.instanceId || null
+  const stateMatchesRoute = Boolean(
+    routeInstanceId && runtimeState?.assessmentInstanceId && runtimeState.assessmentInstanceId === routeInstanceId,
+  )
+  return {
+    inviteToken: null,
+    sectionToken: stateMatchesRoute ? (runtimeState?.sectionToken || null) : null,
+    assessmentInstanceId: routeInstanceId || (runtimeState?.assessmentInstanceId || null),
+  }
+}
+
 export default function ReportIssueLink({ className = '' }) {
   const params = useParams()
   const location = useLocation()
@@ -76,15 +98,12 @@ export default function ReportIssueLink({ className = '' }) {
     }
     setSending(true)
     setError(null)
-    const runtimeState = loadCandidateRuntimeState()
     try {
       await reportCandidateIssue({
         source: resolveSource(location.pathname),
         category,
         description,
-        inviteToken: params.token || null,
-        sectionToken: runtimeState?.sectionToken || null,
-        assessmentInstanceId: params.instanceId || runtimeState?.assessmentInstanceId || null,
+        ...resolveReportIdentity(params, loadCandidateRuntimeState()),
         diagnostics: includeDiagnostics ? collectBrowserDiagnostics() : {},
       })
       setSent(true)
