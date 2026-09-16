@@ -480,6 +480,31 @@
     #15110F;
 }
 
+/* ── Flow ambient ──────────────────────────────────────────────────────────
+   The funnel screens (landing, terms, section intros, completion) run on the
+   same ember ground as the interview, but top-anchored and much quieter: these
+   are reading screens, and the interview's floor-level bloom sits exactly
+   where a rules list or a section stepper needs contrast. One wash behind the
+   masthead is enough to say "same world" without fighting the copy. */
+.flow-ambient {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 60% at 50% -12%,
+      color-mix(in srgb, var(--color-ember) 22%, transparent) 0%,
+      color-mix(in srgb, var(--color-ember) 16%, transparent) 22%,
+      color-mix(in srgb, var(--color-ember) 9%, transparent) 44%,
+      color-mix(in srgb, var(--color-ember) 3.5%, transparent) 66%,
+      color-mix(in srgb, var(--color-ember) 0%, transparent) 100%),
+    radial-gradient(80% 45% at 108% 96%,
+      color-mix(in srgb, var(--color-ember-soft) 12%, transparent) 0%,
+      color-mix(in srgb, var(--color-ember-soft) 5%, transparent) 40%,
+      color-mix(in srgb, var(--color-ember-soft) 0%, transparent) 100%);
+}
+
+/* Same dither as the interview ground, same reason. */
+.flow-ambient::after,
 /* Dither. A gradient this large and this dark bands into visible steps on 8-bit
    panels — the ramp above crosses ~130 levels of red over ~700px, so whole
    bands of pixels round to the same value. A little static noise breaks the
@@ -564,6 +589,26 @@
 
 .timer-urgent {
   animation: timerUrgent 1.6s ease-in-out infinite;
+}
+
+/* ── Indeterminate rail for the workspace boot screen ─────────────── */
+/* The container cold start has no knowable duration, so the rail travels
+   instead of filling — see CandidateBootScreen. */
+@keyframes bootRail {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(400%); }
+}
+
+.boot-rail {
+  animation: bootRail 1.7s cubic-bezier(0.55, 0, 0.45, 1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boot-rail {
+    animation: none;
+    width: 100%;
+    opacity: 0.45;
+  }
 }
 
 /* ── Ember sweep for the submit CTA ───────────────────────────────── */
