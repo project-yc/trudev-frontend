@@ -45,7 +45,7 @@ export default function InterviewStatusPanel({ variant, message, onRetry, onCont
         transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
         className={
           isComplete || isEnded
-            ? 'flex h-16 w-16 items-center justify-center rounded-2xl border border-border-default bg-surface'
+            ? 'flex h-16 w-16 items-center justify-center rounded-2xl border border-border bg-surface'
             : 'flex h-16 w-16 items-center justify-center rounded-2xl border border-error-border bg-error-bg'
         }
       >
