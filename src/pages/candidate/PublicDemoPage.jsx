@@ -1,14 +1,21 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { IconBuilding, IconChevronRight } from '@tabler/icons-react'
+import { motion as Motion } from 'motion/react'
+import { IconArrowRight } from '@tabler/icons-react'
 import { getPublicDemo, startPublicDemo } from '../../api/candidate/publicDemo'
 import {
   CandidateCenteredErrorState,
   CandidateCenteredLoadingState,
-  CandidateErrorBanner,
-  CandidatePageShell,
-  CandidatePrimaryButton,
 } from '../../components/candidate/CandidateSectionScaffold'
+import CandidateFlowShell, {
+  FlowErrorBanner,
+  FlowEyebrow,
+  FlowLead,
+  FlowSectionLabel,
+  FlowTitle,
+} from '../../components/candidate/CandidateFlowShell'
+import { useFlowRise } from '../../components/candidate/flowMotion'
+import ExamButton from '../../components/candidate/exam/ExamButton'
 import { buildInviteRoute } from '../../routes/candidateRoutes'
 
 const NAME_MAX_LENGTH = 120
@@ -16,8 +23,18 @@ const NAME_MAX_LENGTH = 120
 // we just guard against obvious typos, not enforce RFC 5322.
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-const INPUT_CLASS =
-  'w-full bg-surface border border-border-default rounded-xl px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand-border'
+const INPUT_CLASS = [
+  'w-full rounded-[10px] border border-border bg-surface-muted px-3.5 py-2.5',
+  'text-[14px] text-text-primary placeholder:text-text-faint',
+  'transition-colors duration-200 hover:border-border-strong',
+  'focus:outline-none focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand',
+  'focus-visible:ring-offset-2 focus-visible:ring-offset-page',
+  'disabled:cursor-not-allowed disabled:opacity-50',
+].join(' ')
+
+// The submit control lives in the shell's pinned action bar, outside this
+// form's DOM subtree, so it is wired back to it by id rather than by nesting.
+const DEMO_FORM_ID = 'public-demo-form'
 
 // Every start mints a fresh session, and the returned link is absolute
 // (frontend base URL + /invite/<token>). Stay inside the SPA when it points
@@ -57,6 +74,7 @@ export default function PublicDemoPage() {
   const [email, setEmail] = useState('')
   const [error, setError] = useState('')
   const [starting, setStarting] = useState(false)
+  const rise = useFlowRise()
 
   useEffect(() => {
     let cancelled = false
@@ -101,7 +119,7 @@ export default function PublicDemoPage() {
   }
 
   if (loading) {
-    return <CandidateCenteredLoadingState label="Loading demo..." />
+    return <CandidateCenteredLoadingState label="Loading demo…" />
   }
 
   if (!demo) {
@@ -114,36 +132,36 @@ export default function PublicDemoPage() {
   }
 
   return (
-    <CandidatePageShell>
-      <div className="text-center space-y-2">
-        <p className="text-brand-deep text-xs font-semibold uppercase tracking-widest">
-          Demo
-        </p>
-        <h1 className="text-text-primary text-2xl font-bold tracking-tight leading-tight">
-          {demo.assessment_name}
-        </h1>
-        {demo.description && (
-          <p className="text-text-secondary text-sm">{demo.description}</p>
-        )}
-      </div>
-
-      {demo.org_name && (
-        <div className="flex flex-wrap items-center justify-center gap-2.5">
-          <span className="inline-flex items-center gap-1.5 text-xs text-text-secondary bg-surface-muted border border-border-default px-2.5 py-1 rounded-full">
-            <IconBuilding size={12} />
-            {demo.org_name}
-          </span>
-        </div>
+    <CandidateFlowShell
+      // A public demo has no invited org, so the masthead stands in for one
+      // rather than falling back to the word "Assessment".
+      branding={demo.org_name ? { candidate_name: demo.org_name } : null}
+      subtitle="Live product demo"
+      action={(
+        <ExamButton size="lg" sweep form={DEMO_FORM_ID} type="submit" loading={starting}>
+          Start the demo
+          <IconArrowRight size={17} />
+        </ExamButton>
       )}
+      actionNote="No signup. Nothing is saved to a hiring pipeline."
+    >
+      <Motion.div {...rise(0)} className="flex flex-col gap-3">
+        <FlowEyebrow>Live demo</FlowEyebrow>
+        <FlowTitle>{demo.assessment_name}</FlowTitle>
+        {demo.description && <FlowLead>{demo.description}</FlowLead>}
+      </Motion.div>
 
-      <form onSubmit={handleStart} className="space-y-6">
-        <div className="bg-surface-muted border border-border-default rounded-xl px-4 py-4 space-y-3">
-          <p className="text-text-muted text-xs font-semibold uppercase tracking-wide">
-            Before you start
-          </p>
-          <div className="space-y-2.5">
-            <label className="block space-y-1">
-              <span className="text-text-secondary text-xs font-medium">Name</span>
+      <Motion.form
+        {...rise(0.1)}
+        id={DEMO_FORM_ID}
+        onSubmit={handleStart}
+        className="mt-8 flex flex-col gap-3"
+      >
+        <FlowSectionLabel>Before you start</FlowSectionLabel>
+        <div className="rounded-2xl border border-border bg-surface px-4 py-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[12.5px] font-medium text-text-secondary">Name</span>
               <input
                 type="text"
                 name="name"
@@ -156,8 +174,8 @@ export default function PublicDemoPage() {
                 className={INPUT_CLASS}
               />
             </label>
-            <label className="block space-y-1">
-              <span className="text-text-secondary text-xs font-medium">Work email</span>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[12.5px] font-medium text-text-secondary">Work email</span>
               <input
                 type="email"
                 name="email"
@@ -170,18 +188,13 @@ export default function PublicDemoPage() {
               />
             </label>
           </div>
-          <p className="text-text-muted text-xs">
+          <p className="mt-3 text-[12.5px] leading-[1.6] text-text-muted">
             Both optional. They only label your session so the report has your name on it.
           </p>
         </div>
 
-        {error ? <CandidateErrorBanner>{error}</CandidateErrorBanner> : null}
-
-        <CandidatePrimaryButton type="submit" disabled={starting}>
-          {starting ? 'Starting...' : 'Start the demo'}
-          <IconChevronRight size={16} />
-        </CandidatePrimaryButton>
-      </form>
-    </CandidatePageShell>
+        {error ? <FlowErrorBanner>{error}</FlowErrorBanner> : null}
+      </Motion.form>
+    </CandidateFlowShell>
   )
 }
