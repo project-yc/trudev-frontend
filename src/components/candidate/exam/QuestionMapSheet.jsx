@@ -18,7 +18,7 @@ export default function QuestionMapSheet({ open, onOpenChange, statuses, current
       <SheetContent
         side="bottom"
         container={container}
-        className="candidate-theme max-h-[80vh] rounded-t-2xl border-t border-border-default"
+        className="candidate-theme max-h-[80vh] rounded-t-2xl border-t border-border"
       >
         <SheetHeader>
           <SheetTitle>Question Navigator</SheetTitle>
