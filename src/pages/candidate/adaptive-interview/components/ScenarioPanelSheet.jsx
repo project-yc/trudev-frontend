@@ -25,7 +25,7 @@ export default function ScenarioPanelSheet({ open, onOpenChange, scenario }) {
       <SheetContent
         side="right"
         container={container}
-        className="candidate-theme w-full border-l border-border-default bg-chrome sm:max-w-[440px]"
+        className="candidate-theme w-full border-l border-border bg-chrome sm:max-w-[440px]"
       >
         <SheetHeader className="border-b-0 px-6 pb-1 pt-6">
           <SheetTitle className="text-[17px] font-semibold leading-[1.3] tracking-[-0.015em] text-text-primary">
