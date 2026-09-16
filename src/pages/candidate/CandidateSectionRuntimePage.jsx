@@ -1,38 +1,32 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import { Zap } from 'lucide-react'
-import { IconMicrophone, IconPlayerStopFilled } from '@tabler/icons-react'
-import { cn } from '../../lib/utils'
-import { useDictation } from './adaptive-interview/useDictation'
 import {
-  autosaveFreeTextRuntime,
-  autosaveMcqRuntime,
-  autosaveRankingRuntime,
   getCandidateNextAction,
-  getFreeTextRuntime,
-  getMcqRuntime,
-  getRankingRuntime,
   getReflectionRuntime,
   loadCandidateRuntimeState,
   normalizeCandidateRuntimeState,
   saveCandidateRuntimeState,
-  submitFreeTextRuntime,
-  submitMcqRuntime,
-  submitRankingRuntime,
   submitReflectionRuntime,
 } from '../../api/candidate/runtime'
-import { CandidateBootScreen, TOTAL_BOOT_MS } from '../../components/candidate/CandidateBootScreen'
+import { CandidateBootScreen } from '../../components/candidate/CandidateBootScreen'
+import CandidateReflectionScreen from '../../components/candidate/CandidateReflectionScreen'
 import {
   CandidateCenteredErrorState,
   CandidateCenteredLoadingState,
-  CandidateErrorBanner,
-  CandidatePrimaryButton,
-  CandidateSecondaryButton,
   CandidateSectionIntroScreen,
 } from '../../components/candidate/CandidateSectionScaffold'
+import ExamShell, { ExamTopBar } from '../../components/candidate/exam/ExamShell'
+import { ConnectionStatus, ExamBrand } from '../../components/candidate/exam/ExamStatus'
+import { SectionStepperCompact } from '../../components/candidate/exam/SectionStepper'
 import CandidateMcqSectionExperience from '../../components/candidate/CandidateMcqSectionExperience'
 import CandidateAdaptiveInterviewExperience from './adaptive-interview'
+import { loadCandidateBranding } from '../../theme/CandidateThemeProvider'
 import { handleCandidateNextAction } from './assessmentStartNavigation'
+import {
+  identifyCandidateSession,
+  setCandidateContext,
+  trackCandidate,
+} from '../../analytics/candidateAnalytics'
 
 // The start call used to block until Theia was up, so by the time this page
 // polled `/ready` the workspace was already there and 45s was generous. Start
@@ -43,6 +37,14 @@ const MAX_BOOT_WAIT_MS = 180000
 const BOOT_POLL_INTERVAL_MS = 1500
 const POST_SUBMIT_TRANSITION_MS = 1200
 
+// Without the gateway, readiness cannot actually be measured: `probeWorkspaceReady`
+// is a `no-cors` fetch, which resolves for a 502 exactly as it does for a live
+// IDE. So on that path the wait is still a fixed floor — the same 19.5s the old
+// scripted boot animation used — and only the gateway path polls for real.
+// This is a limitation of the probe, not a loading aesthetic; the boot screen no
+// longer pretends otherwise.
+const MIN_NON_GATEWAY_BOOT_MS = 19500
+
 const SECTION_LABELS = {
   mcq: 'MCQ',
   free_text: 'Free Text',
@@ -50,6 +52,11 @@ const SECTION_LABELS = {
   technical_task: 'Coding',
   adaptive_interview: 'AI Interview',
 }
+
+// Types whose whole section is delivered as a list of items and rendered by the
+// shared exam experience. `technical_task` has its own workspace and
+// `adaptive_interview` its own chat runtime, so neither is in here.
+const SECTION_LIST_CONTENT_TYPES = ['mcq', 'free_text', 'ranking']
 
 const delay = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms))
 
@@ -90,17 +97,6 @@ const getBootstrapRuntime = (locationState, searchParams, params) => {
   const storedRuntime = loadCandidateRuntimeState()
 
   return stateRuntime || queryRuntime || storedRuntime
-}
-
-const reorderRankingOptions = (options, rankedOptionIds) => {
-  if (!Array.isArray(options) || !Array.isArray(rankedOptionIds) || rankedOptionIds.length === 0) {
-    return options || []
-  }
-
-  const byId = new Map(options.map((option) => [String(option.id), option]))
-  const ranked = rankedOptionIds.map((id) => byId.get(String(id))).filter(Boolean)
-  const remaining = options.filter((option) => !rankedOptionIds.includes(String(option.id)))
-  return [...ranked, ...remaining]
 }
 
 // Gateway mode: readiness is asked of the backend (authenticated), and the
@@ -147,127 +143,27 @@ async function probeWorkspaceReady(workspaceUrl) {
   }
 }
 
-function CandidateSectionReviewScreen({
-  sectionLabel,
-  sectionName,
-  assessmentName,
-  prompt,
-  answerPreview,
-  error,
-  onBack,
-  onSubmit,
-  submitting,
-}) {
-  return (
-    <div className="min-h-screen bg-page text-text-primary p-6">
-      <div className="max-w-3xl mx-auto space-y-6 animate-slideInUp">
-        <div className="text-center space-y-2">
-          <p className="text-brand-deep text-xs font-semibold uppercase tracking-widest">{sectionLabel} Review</p>
-          <h1 className="text-text-primary text-2xl font-bold tracking-tight">Review Your Answer</h1>
-          <p className="text-text-secondary text-sm">{sectionName || assessmentName || 'Assessment progression'}</p>
-        </div>
-
-        {error ? <CandidateErrorBanner>{error}</CandidateErrorBanner> : null}
-
-        <div className="border border-border-default bg-surface rounded-xl p-6 space-y-4">
-          <div className="space-y-2">
-            <p className="text-text-muted text-xs font-semibold uppercase tracking-wide">Prompt</p>
-            <p className="text-sm text-text-secondary whitespace-pre-wrap">{prompt || 'No prompt returned by backend.'}</p>
-          </div>
-
-          <div className="space-y-2">
-            <p className="text-text-muted text-xs font-semibold uppercase tracking-wide">Answer Preview</p>
-            {answerPreview}
-          </div>
-        </div>
-
-        <div className="flex gap-3 justify-end">
-          <CandidateSecondaryButton onClick={onBack} disabled={submitting}>
-            Edit Answer
-          </CandidateSecondaryButton>
-          <CandidatePrimaryButton className="w-auto px-4 py-2" onClick={onSubmit} disabled={submitting}>
-            {submitting ? 'Submitting…' : 'Submit Section'}
-          </CandidatePrimaryButton>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// One reflection question: a labelled textarea plus voice dictation, matching
-// the adaptive interview composer (same useDictation hook + mic affordance).
-// Speech goes INTO the textarea so the candidate reads and edits before
-// submitting — the written answer is what gets graded.
-function ReflectionAnswerField({ index, question, value, onChange, disabled, language }) {
-  const dictation = useDictation({
-    onCommit: (phrase) => onChange(value ? `${value} ${phrase}` : phrase),
-    language,
-  })
-  const { listening, interim, error, supported, toggle } = dictation
-
-  return (
-    <div className="border border-border-default bg-surface rounded-xl p-6 space-y-3">
-      <div className="flex items-start justify-between gap-3">
-        <p className="text-sm font-semibold text-text-primary">
-          <span className="text-text-muted mr-2">{index + 1}.</span>
-          {question}
-        </p>
-        {supported && (
-          <button
-            type="button"
-            onClick={toggle}
-            disabled={disabled}
-            aria-pressed={listening}
-            aria-label={listening ? 'Stop voice input' : 'Answer using your voice'}
-            title={listening ? 'Stop voice input' : 'Answer using your voice'}
-            className={cn(
-              'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors duration-150',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
-              listening
-                ? 'cand-mic-live bg-brand text-on-brand'
-                : 'bg-surface-raised text-text-secondary hover:bg-surface-hover hover:text-text-primary',
-              disabled && 'cursor-not-allowed opacity-60',
-            )}
-          >
-            {listening ? <IconPlayerStopFilled size={15} /> : <IconMicrophone size={17} />}
-          </button>
-        )}
-      </div>
-      <textarea
-        className="w-full min-h-32 bg-surface-muted border border-border-default rounded-xl p-3 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand-border"
-        placeholder="Write a few sentences…"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        disabled={disabled}
-      />
-      {/* Reserved line so committing a phrase or an error never shifts layout. */}
-      <div className="min-h-[18px] px-1 text-[12px] leading-[1.5]">
-        {error ? (
-          <span role="alert" className="text-warning">{error}</span>
-        ) : listening ? (
-          <span aria-live="polite" className="text-text-muted">{interim || 'Listening…'}</span>
-        ) : supported ? (
-          <span className="text-text-faint">Tap the mic to speak instead of typing.</span>
-        ) : null}
-      </div>
-    </div>
-  )
-}
-
 export default function CandidateSectionRuntimePage() {
     const { instanceId, sectionId } = useParams()
     const location = useLocation()
     const navigate = useNavigate()
 
     const [runtimeState, setRuntimeState] = useState(() => getBootstrapRuntime(location.state, new URLSearchParams(location.search), { instanceId, sectionId }))
-    const [content, setContent] = useState(null)
     const [screen, setScreen] = useState('preparing')
     const [error, setError] = useState('')
-    const [saving, setSaving] = useState(false)
-    const [submitting, setSubmitting] = useState(false)
-    const [selectedOptionIds, setSelectedOptionIds] = useState([])
-    const [freeTextValue, setFreeTextValue] = useState('')
-    const [rankingOptions, setRankingOptions] = useState([])
+    const branding = loadCandidateBranding()
+
+    // Real boot state, not a script. `bootStage` is the furthest point actually
+    // reached, `bootLog` is written by transitions and probes as they happen.
+    const [bootStage, setBootStage] = useState('authenticating')
+    const [bootElapsedMs, setBootElapsedMs] = useState(0)
+    const [bootLog, setBootLog] = useState([])
+    const bootStartedAtRef = useRef(0)
+
+    const appendBootLog = useCallback((line) => {
+      setBootLog((current) => [...current.slice(-40), line])
+    }, [])
+
     // Standalone reflection step after a coding submit (branch 1): the section is
     // not truly complete until these are answered. Questions come from the
     // backend (candidate-safe, no grading anchors); answers post back and then
@@ -389,7 +285,12 @@ export default function CandidateSectionRuntimePage() {
             || !nextRuntime.contentType
             || !nextRuntime.sectionName
             || !nextRuntime.assessmentName
-            || (nextRuntime.contentType === 'mcq' && (!Array.isArray(nextRuntime.sectionItems) || nextRuntime.sectionItems.length === 0))
+            // Every list-delivered type needs its items, not just MCQ. While
+            // this said `contentType === 'mcq'`, a free-text or ranking runtime
+            // restored from storage without `section_items` was handed to the
+            // exam experience with an empty section.
+            || (SECTION_LIST_CONTENT_TYPES.includes(nextRuntime.contentType)
+              && (!Array.isArray(nextRuntime.sectionItems) || nextRuntime.sectionItems.length === 0))
             || (nextRuntime.contentType === 'technical_task' && !nextRuntime.workspaceUrl)
           )
 
@@ -415,7 +316,20 @@ export default function CandidateSectionRuntimePage() {
           }
 
           setRuntimeState(nextRuntime)
-          setContent(null)
+          // `sessionId` is the candidate session id — the same value the Theia
+          // container receives as SESSION_ID — so aliasing it here is what makes
+          // the in-IDE events land on this person rather than a second one.
+          identifyCandidateSession(nextRuntime.sessionId)
+          setCandidateContext({
+            stage: 'section',
+            section_type: nextRuntime.contentType || null,
+            section_order: nextRuntime.sectionOrder || null,
+          })
+          trackCandidate('candidate_stage_viewed', {
+            stage: 'section',
+            section_type: nextRuntime.contentType || null,
+            returning_from_coding: returningFromCodingSubmit || returningFromCodingPause,
+          })
           // The token is now persisted in runtime state, so it no longer needs
           // to be in the URL. Unconditional — every path through here has just
           // saved it.
@@ -429,7 +343,7 @@ export default function CandidateSectionRuntimePage() {
           // The launch page already showed the coding intro and provisioned the
           // workspace in the background, so a ready coding runtime arriving with
           // `autoBoot` skips a second intro and goes straight to the boot
-          // animation. Never on the pause/submit-return paths (they need the
+          // screen. Never on the pause/submit-return paths (they need the
           // intro / their own transition).
           const autoBootCoding = (
             location.state?.autoBoot
@@ -438,7 +352,12 @@ export default function CandidateSectionRuntimePage() {
             && nextRuntime.contentType === 'technical_task'
             && Boolean(nextRuntime.workspaceUrl)
           )
-          setScreen(autoBootCoding ? 'booting' : 'overview')
+          if (autoBootCoding) {
+            setBootStage('waiting')
+            setScreen('booting')
+          } else {
+            setScreen('overview')
+          }
         } catch (hydrateError) {
           setError(hydrateError.message || 'Failed to load candidate section runtime')
           setScreen('error')
@@ -448,6 +367,21 @@ export default function CandidateSectionRuntimePage() {
       prepareRuntime()
     }, [handleNextAction, instanceId, sectionId, location.key, location.search, location.state])
 
+    // Real elapsed clock for the boot screen. Separate from the poll loop so the
+    // readout keeps moving between probes.
+    useEffect(() => {
+      if (screen !== 'booting') {
+        return undefined
+      }
+      if (!bootStartedAtRef.current) {
+        bootStartedAtRef.current = Date.now()
+      }
+      const intervalId = window.setInterval(() => {
+        setBootElapsedMs(Date.now() - bootStartedAtRef.current)
+      }, 500)
+      return () => window.clearInterval(intervalId)
+    }, [screen])
+
     useEffect(() => {
       if (screen !== 'booting' || !runtimeState?.workspaceUrl) {
         return undefined
@@ -456,11 +390,26 @@ export default function CandidateSectionRuntimePage() {
       let cancelled = false
 
       const waitForWorkspace = async () => {
-        const bootStartedAt = Date.now()
-        await delay(TOTAL_BOOT_MS)
-
+        const bootStartedAt = bootStartedAtRef.current || Date.now()
+        bootStartedAtRef.current = bootStartedAt
         const viaGateway = Boolean(runtimeState.workspaceEntryUrl && runtimeState.sectionToken)
+
+        setBootStage('waiting')
+        appendBootLog(
+          viaGateway
+            ? '[gateway] container address received · polling readiness'
+            : '[boot]    container address received · warming up',
+        )
+
+        if (!viaGateway) {
+          // See MIN_NON_GATEWAY_BOOT_MS: there is nothing to poll for here.
+          await delay(MIN_NON_GATEWAY_BOOT_MS)
+          if (cancelled) return
+        }
+
+        let probe = 0
         while (!cancelled) {
+          probe += 1
           const isReady = viaGateway
             ? await probeGatewayReady(runtimeState.workspaceEntryUrl, runtimeState.sectionToken)
             : await probeWorkspaceReady(runtimeState.workspaceUrl)
@@ -468,6 +417,18 @@ export default function CandidateSectionRuntimePage() {
             return
           }
           if (isReady) {
+            setBootStage('entering')
+            appendBootLog('[theia]   workspace reachable · opening editor')
+            // Last event this app can send before the browser leaves for the
+            // IDE: entering the workspace is a top-level navigation (a form POST
+            // under the gateway), not an iframe. The Theia side picks the
+            // candidate up again on the same distinct ID. The gap between this
+            // event and the IDE's own `ide_loaded` is exactly the set of
+            // hand-offs that broke.
+            trackCandidate('candidate_workspace_entered', {
+              via_gateway: viaGateway,
+              boot_wait_ms: Date.now() - bootStartedAt,
+            })
             if (viaGateway) {
               enterWorkspaceViaGateway(runtimeState.workspaceEntryUrl, runtimeState.sectionToken)
             } else {
@@ -478,9 +439,17 @@ export default function CandidateSectionRuntimePage() {
           if ((Date.now() - bootStartedAt) >= MAX_BOOT_WAIT_MS) {
             // Entering anyway used to land the candidate on a raw nginx
             // 502 when the container had died. Say so and let them retry.
+            trackCandidate('candidate_workspace_boot_failed', {
+              via_gateway: viaGateway,
+              waited_ms: Date.now() - bootStartedAt,
+            })
             setError('Your workspace did not start in time. Click Start Section to try again — your work is saved.')
+            bootStartedAtRef.current = 0
             setScreen('overview')
             return
+          }
+          if (viaGateway) {
+            appendBootLog(`[probe]   attempt ${probe} · not ready yet`)
           }
           await delay(BOOT_POLL_INTERVAL_MS)
         }
@@ -491,27 +460,7 @@ export default function CandidateSectionRuntimePage() {
       return () => {
         cancelled = true
       }
-    }, [runtimeState?.workspaceUrl, runtimeState?.workspaceEntryUrl, runtimeState?.sectionToken, screen])
-
-    const loadSectionContent = useCallback(async (nextRuntime) => {
-      let payload = null
-
-      if (nextRuntime.contentType === 'mcq') {
-        payload = await getMcqRuntime(nextRuntime.currentItemAttemptId, nextRuntime.sectionToken)
-        setSelectedOptionIds(payload?.response?.selected_option_ids || [])
-      } else if (nextRuntime.contentType === 'free_text') {
-        payload = await getFreeTextRuntime(nextRuntime.currentItemAttemptId, nextRuntime.sectionToken)
-        setFreeTextValue(payload?.response?.response_text || '')
-      } else if (nextRuntime.contentType === 'ranking') {
-        payload = await getRankingRuntime(nextRuntime.currentItemAttemptId, nextRuntime.sectionToken)
-        const options = payload?.question?.options || []
-        setRankingOptions(reorderRankingOptions(options, payload?.response?.ranked_option_ids || []))
-      } else {
-        throw new Error(`Unsupported content_type: ${nextRuntime.contentType}`)
-      }
-
-      setContent(payload)
-    }, [])
+    }, [appendBootLog, runtimeState?.workspaceUrl, runtimeState?.workspaceEntryUrl, runtimeState?.sectionToken, screen])
 
     const beginSection = useCallback(async () => {
       if (!runtimeState) {
@@ -520,130 +469,46 @@ export default function CandidateSectionRuntimePage() {
 
       setError('')
 
-      if (runtimeState.contentType === 'technical_task') {
-        if (!runtimeState.workspaceUrl) {
-          // Paused (cold) or the container died: ask the backend for the
-          // next action. For a paused session that call resumes the clock
-          // and relaunches the workspace from the pause snapshot — a ~30s
-          // Fargate launch. Show the provisioning boot screen for the whole
-          // wait (the poll effect below only starts once workspaceUrl is set),
-          // rather than leaving the Resume button sitting there doing nothing.
-          setScreen('booting')
-          try {
-            const nextAction = await getCandidateNextAction(instanceId, runtimeState.sectionToken, { resume: true })
-            if (nextAction.next_action !== 'launch_coding') {
-              handleNextAction(nextAction)
-              return
-            }
-            const nextRuntime = saveCandidateRuntimeState(nextAction)
-            setPausedReturn(false)
-            setRuntimeState(nextRuntime)
-          } catch (resumeError) {
-            setError(resumeError.message || 'Could not relaunch the workspace')
-            setScreen('overview')
-          }
-          return
-        }
+      // Only `technical_task` reaches this now. Every list-delivered type is
+      // rendered by the exam experience, which owns its own intro and start.
+      if (runtimeState.contentType !== 'technical_task') {
+        return
+      }
+
+      bootStartedAtRef.current = Date.now()
+      setBootElapsedMs(0)
+      setBootLog([])
+
+      if (!runtimeState.workspaceUrl) {
+        // Paused (cold) or the container died: ask the backend for the
+        // next action. For a paused session that call resumes the clock
+        // and relaunches the workspace from the pause snapshot — a ~30s
+        // Fargate launch. Show the boot screen for the whole wait (the poll
+        // effect below only starts once workspaceUrl is set), rather than
+        // leaving the Resume button sitting there doing nothing.
+        setBootStage('provisioning')
+        appendBootLog('[boot]    requesting a workspace container')
         setScreen('booting')
+        try {
+          const nextAction = await getCandidateNextAction(instanceId, runtimeState.sectionToken, { resume: true })
+          if (nextAction.next_action !== 'launch_coding') {
+            handleNextAction(nextAction)
+            return
+          }
+          const nextRuntime = saveCandidateRuntimeState(nextAction)
+          setPausedReturn(false)
+          setRuntimeState(nextRuntime)
+        } catch (resumeError) {
+          setError(resumeError.message || 'Could not relaunch the workspace')
+          bootStartedAtRef.current = 0
+          setScreen('overview')
+        }
         return
       }
 
-      setScreen('loading')
-      try {
-        await loadSectionContent(runtimeState)
-        setScreen('runtime')
-      } catch (loadError) {
-        setError(loadError.message || 'Failed to load section content')
-        setScreen('overview')
-      }
-    }, [handleNextAction, instanceId, loadSectionContent, runtimeState])
-
-    const handleMcqToggle = (optionId, selectionMode) => {
-      if (selectionMode === 'single') {
-        setSelectedOptionIds([optionId])
-        return
-      }
-
-      setSelectedOptionIds((current) => (
-        current.includes(optionId)
-          ? current.filter((id) => id !== optionId)
-          : [...current, optionId]
-      ))
-    }
-
-    const moveRankingOption = (index, direction) => {
-      setRankingOptions((current) => {
-        const next = [...current]
-        const targetIndex = index + direction
-        if (targetIndex < 0 || targetIndex >= next.length) {
-          return current
-        }
-        const [moved] = next.splice(index, 1)
-        next.splice(targetIndex, 0, moved)
-        return next
-      })
-    }
-
-    const saveDraft = async () => {
-      if (!runtimeState) {
-        return
-      }
-
-      setSaving(true)
-      setError('')
-      try {
-        if (runtimeState.contentType === 'mcq') {
-          await autosaveMcqRuntime(runtimeState.currentItemAttemptId, runtimeState.sectionToken, selectedOptionIds)
-        } else if (runtimeState.contentType === 'free_text') {
-          await autosaveFreeTextRuntime(runtimeState.currentItemAttemptId, runtimeState.sectionToken, freeTextValue)
-        } else if (runtimeState.contentType === 'ranking') {
-          await autosaveRankingRuntime(
-            runtimeState.currentItemAttemptId,
-            runtimeState.sectionToken,
-            rankingOptions.map((option) => String(option.id)),
-          )
-        }
-      } catch (saveError) {
-        setError(saveError.message || 'Draft save failed')
-      } finally {
-        setSaving(false)
-      }
-    }
-
-    const submitSection = async () => {
-      if (!runtimeState) {
-        return
-      }
-
-      setSubmitting(true)
-      setError('')
-      try {
-        let payload = null
-        if (runtimeState.contentType === 'mcq') {
-          payload = await submitMcqRuntime(runtimeState.currentItemAttemptId, runtimeState.sectionToken, selectedOptionIds)
-        } else if (runtimeState.contentType === 'free_text') {
-          payload = await submitFreeTextRuntime(runtimeState.currentItemAttemptId, runtimeState.sectionToken, freeTextValue)
-        } else if (runtimeState.contentType === 'ranking') {
-          payload = await submitRankingRuntime(
-            runtimeState.currentItemAttemptId,
-            runtimeState.sectionToken,
-            rankingOptions.map((option) => String(option.id)),
-          )
-        }
-
-        handleNextAction(payload)
-      } catch (submitError) {
-        setError(submitError.message || 'Submit failed')
-        if (runtimeState.contentType === 'free_text' || runtimeState.contentType === 'ranking') {
-          setScreen('review')
-        }
-      } finally {
-        setSubmitting(false)
-      }
-    }
-
-    const allReflectionAnswered = Array.isArray(reflectionQuestions)
-      && reflectionQuestions.every((q) => (reflectionAnswers[q.id] || '').trim().length > 0)
+      setBootStage('waiting')
+      setScreen('booting')
+    }, [appendBootLog, handleNextAction, instanceId, runtimeState])
 
     const submitReflectionAndAdvance = async () => {
       if (!runtimeState || !Array.isArray(reflectionQuestions)) {
@@ -672,56 +537,45 @@ export default function CandidateSectionRuntimePage() {
       }
     }
 
-  const getReviewAnswerPreview = () => {
-    if (runtimeState?.contentType === 'free_text') {
-      return freeTextValue?.trim()
-        ? <div className="rounded-xl border border-border-default bg-surface-muted px-4 py-4 text-sm text-text-secondary whitespace-pre-wrap">{freeTextValue}</div>
-        : <p className="text-sm text-text-muted">No response entered yet.</p>
-    }
-
-    if (runtimeState?.contentType === 'ranking') {
-      return rankingOptions.length > 0 ? (
-        <div className="space-y-2">
-          {rankingOptions.map((option, index) => (
-            <div key={option.id} className="flex items-center gap-3 rounded-xl border border-border-default bg-surface-muted px-4 py-3 text-sm text-text-secondary">
-              <span className="w-6 h-6 rounded-full bg-surface border border-border-default text-text-muted text-xs font-semibold flex items-center justify-center shrink-0">{index + 1}</span>
-              <span>{option.text}</span>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="text-sm text-text-muted">No ranking order available.</p>
-      )
-    }
-
-    return null
-  }
-
   if (screen === 'preparing') {
-    return <CandidateCenteredLoadingState label="Loading section runtime..." />
+    return <CandidateCenteredLoadingState label="Loading assessment…" />
   }
 
   if (screen === 'error') {
     return <CandidateCenteredErrorState title="Section unavailable" message={error} />
   }
 
-  const question = content?.question || {}
-  const selectionMode = question.selection_mode || 'single'
   const sectionLabel = SECTION_LABELS[runtimeState?.contentType] || 'Section'
+  // `${sectionLabel} Section` reads as "Section Section" when the content type
+  // is missing, which is exactly the case where the screen is already the least
+  // informative.
+  const sectionEyebrow = SECTION_LABELS[runtimeState?.contentType]
+    ? `${sectionLabel} Section`
+    : 'Next section'
+  // `section_order` from the backend is zero-based, which is already the index
+  // the stepper wants. Anything non-numeric means "position unknown" (-1), and
+  // the stepper falls back to showing the section count alone.
+  const sectionIndex = Number.isFinite(Number(runtimeState?.sectionOrder))
+    ? Number(runtimeState.sectionOrder)
+    : -1
 
   if (screen === 'overview') {
     // The adaptive interview owns its own loading/expiry screens and bootstraps
-    // itself, so it renders in place of beginSection/loadSectionContent. It
-    // still gets the generic intro first (see adaptiveIntroDone above).
+    // itself, so it renders in place of beginSection. It still gets the generic
+    // intro first (see adaptiveIntroDone above).
     if (runtimeState?.contentType === 'adaptive_interview' && !adaptiveIntroDone) {
       return (
         <CandidateSectionIntroScreen
-          eyebrow={`${sectionLabel} Section`}
+          eyebrow={sectionEyebrow}
           title={runtimeState?.sectionName || 'AI Interview'}
           subtitle={runtimeState?.assessmentName || 'Assessment progression'}
-          metaItems={[
-            sectionLabel,
-            ...(runtimeState?.sectionTimerMinutes ? [`${runtimeState.sectionTimerMinutes} min`] : []),
+          sectionCount={runtimeState?.sectionCount}
+          currentIndex={sectionIndex}
+          stats={[
+            { value: sectionLabel, label: 'Format' },
+            ...(runtimeState?.sectionTimerMinutes
+              ? [{ value: runtimeState.sectionTimerMinutes, unit: 'min', label: 'On the clock' }]
+              : [{ value: 'Untimed', label: 'On the clock' }]),
           ]}
           tips={[
             'A short conversation with an AI interviewer. Type your answers, or tap the mic and talk.',
@@ -754,17 +608,24 @@ export default function CandidateSectionRuntimePage() {
       )
     }
 
-    if (runtimeState?.contentType === 'mcq') {
+    // MCQ, free text and ranking are all one section of items, and all three
+    // are rendered by the same experience: shared intro, question navigator,
+    // autosave, review list and one batch submit. Free text and ranking used to
+    // fall through to a per-item legacy screen instead — a bare textarea and a
+    // pair of Up/Down text buttons — while the component below already
+    // supported both types in full.
+    if (SECTION_LIST_CONTENT_TYPES.includes(runtimeState?.contentType)) {
       return (
         <CandidateMcqSectionExperience
           assessmentInstanceId={runtimeState.assessmentInstanceId}
           sectionToken={runtimeState.sectionToken}
           sectionId={runtimeState.sectionId}
-          sectionName={runtimeState.sectionName || 'MCQ Section'}
+          sectionName={runtimeState.sectionName || `${sectionLabel} Section`}
           sectionItems={runtimeState.sectionItems || []}
           sectionTimerMinutes={runtimeState.sectionTimerMinutes}
           sectionOrder={runtimeState.sectionOrder}
           sectionCount={runtimeState.sectionCount}
+          contentType={runtimeState.contentType}
           onSubmitResult={async (result) => handleNextAction(result)}
         />
       )
@@ -772,12 +633,16 @@ export default function CandidateSectionRuntimePage() {
 
     return (
       <CandidateSectionIntroScreen
-        eyebrow={`${sectionLabel} Section`}
+        eyebrow={sectionEyebrow}
         title={runtimeState?.sectionName || 'Next Section'}
         subtitle={runtimeState?.assessmentName || 'Assessment progression'}
-        metaItems={[
-          sectionLabel,
-          ...(runtimeState?.sectionTimerMinutes ? [`${runtimeState.sectionTimerMinutes} min`] : []),
+        sectionCount={runtimeState?.sectionCount}
+        currentIndex={sectionIndex}
+        stats={[
+          { value: sectionLabel, label: 'Format' },
+          ...(runtimeState?.sectionTimerMinutes
+            ? [{ value: runtimeState.sectionTimerMinutes, unit: 'min', label: 'On the clock' }]
+            : [{ value: 'Untimed', label: 'On the clock' }]),
         ]}
         tips={runtimeState?.contentType === 'technical_task'
           ? (pausedReturn
@@ -786,12 +651,13 @@ export default function CandidateSectionRuntimePage() {
                 'Click Resume Section to relaunch your workspace from the saved snapshot; the clock restarts then.',
               ]
             : [
-                'Click Start Section to begin the workspace boot sequence.',
-                'You will only be redirected once the workspace is reachable.',
+                'You will work in a full editor in your browser — a real repository, not a text box.',
+                'Starting a workspace takes up to a couple of minutes on a cold start. You only enter once it is genuinely reachable.',
+                'The workspace has a Pause button that stops the clock, and your work is saved when you pause.',
               ])
           : [
-              'Click Start Section when you are ready to begin.',
-              'The next section becomes available immediately after submission while grading continues in the background.',
+              'The clock for this section starts when you press the button below, not now.',
+              'The next section opens as soon as you submit this one — grading continues in the background.',
             ]}
         error={error}
         actionContent={pausedReturn ? 'Resume Section' : 'Start Section'}
@@ -800,183 +666,63 @@ export default function CandidateSectionRuntimePage() {
     )
   }
 
-    if (screen === 'booting') {
-      return (
-        <div className="min-h-screen bg-[#040914] flex flex-col items-center justify-center p-4">
-          <div className="flex items-center gap-2 mb-10">
-            <Zap className="w-4 h-4 text-[#18d3ff]" strokeWidth={2.5} />
-            <span className="font-wordmark text-sm font-medium tracking-[0.01em] text-[#edf4ff]">TruDev</span>
-          </div>
-          <CandidateBootScreen />
-        </div>
-      )
-    }
-
-  if (screen === 'loading') {
-    return <CandidateCenteredLoadingState label="Loading section content..." />
+  if (screen === 'booting') {
+    return (
+      <ExamShell
+        branding={branding}
+        centerStage
+        topBar={(
+          <ExamTopBar
+            brand={(
+              <ExamBrand
+                branding={branding}
+                fallback={runtimeState?.sectionName || 'Coding Section'}
+                subtitle={runtimeState?.sectionName}
+              />
+            )}
+          >
+            {runtimeState?.sectionCount > 0 && (
+              <SectionStepperCompact
+                currentIndex={sectionIndex}
+                count={runtimeState.sectionCount}
+              />
+            )}
+            <ConnectionStatus />
+          </ExamTopBar>
+        )}
+      >
+        <CandidateBootScreen
+          stage={bootStage}
+          elapsedMs={bootElapsedMs}
+          logLines={bootLog}
+          maxWaitMs={MAX_BOOT_WAIT_MS}
+        />
+      </ExamShell>
+    )
   }
 
   if (screen === 'submitting') {
-    return <CandidateCenteredLoadingState label="Submitting answers..." />
-  }
-
-  if (screen === 'review') {
-    return (
-      <CandidateSectionReviewScreen
-        sectionLabel={sectionLabel}
-        sectionName={runtimeState?.sectionName}
-        assessmentName={runtimeState?.assessmentName}
-        prompt={question.prompt}
-        answerPreview={getReviewAnswerPreview()}
-        error={error}
-        onBack={() => setScreen('runtime')}
-        onSubmit={submitSection}
-        submitting={submitting}
-      />
-    )
+    return <CandidateCenteredLoadingState label="Submitting answers…" />
   }
 
   if (screen === 'reflection' && Array.isArray(reflectionQuestions)) {
     return (
-      <div className="min-h-screen bg-page text-text-primary p-6">
-        <div className="max-w-3xl mx-auto space-y-6 animate-slideInUp">
-          <div className="text-center space-y-2">
-            <p className="text-brand-deep text-xs font-semibold uppercase tracking-widest">Before you continue</p>
-            <h1 className="text-text-primary text-2xl font-bold tracking-tight">A few quick questions</h1>
-            <p className="text-text-secondary text-sm">
-              Your code is submitted. Answer these in your own words to finish the section — the code
-              isn&apos;t shown here, so just describe what you did and why.
-            </p>
-          </div>
-
-          {error ? <CandidateErrorBanner>{error}</CandidateErrorBanner> : null}
-
-          <div className="space-y-4">
-            {reflectionQuestions.map((reflectionQuestion, index) => (
-              <ReflectionAnswerField
-                key={reflectionQuestion.id}
-                index={index}
-                question={reflectionQuestion.question}
-                value={reflectionAnswers[reflectionQuestion.id] || ''}
-                onChange={(next) => setReflectionAnswers((current) => ({
-                  ...current,
-                  [reflectionQuestion.id]: next,
-                }))}
-                disabled={reflectionSubmitting}
-                language={runtimeState?.language}
-              />
-            ))}
-          </div>
-
-          <div className="flex justify-end">
-            <CandidatePrimaryButton
-              className="w-auto px-4 py-2"
-              onClick={submitReflectionAndAdvance}
-              disabled={reflectionSubmitting || !allReflectionAnswered}
-            >
-              {reflectionSubmitting ? 'Submitting…' : 'Submit & Continue'}
-            </CandidatePrimaryButton>
-          </div>
-          {!allReflectionAnswered ? (
-            <p className="text-center text-xs text-text-muted">Please answer all questions to continue.</p>
-          ) : null}
-        </div>
-      </div>
+      <CandidateReflectionScreen
+        branding={branding}
+        sectionName={runtimeState?.sectionName || 'Coding Section'}
+        questions={reflectionQuestions}
+        answers={reflectionAnswers}
+        onAnswerChange={(id, next) => setReflectionAnswers((current) => ({ ...current, [id]: next }))}
+        onSubmit={submitReflectionAndAdvance}
+        submitting={reflectionSubmitting}
+        error={error}
+        language={runtimeState?.language}
+      />
     )
   }
 
-  return (
-    <div className="min-h-screen bg-page text-text-primary p-6">
-      <div className="max-w-3xl mx-auto space-y-6 animate-slideInUp">
-        <div className="text-center space-y-2">
-          <p className="text-brand-deep text-xs font-semibold uppercase tracking-widest">{sectionLabel} Section</p>
-          <h1 className="text-text-primary text-2xl font-bold tracking-tight">{runtimeState?.sectionName || 'Section'}</h1>
-          <p className="text-text-secondary text-sm">{runtimeState?.assessmentName || 'Assessment progression'}</p>
-        </div>
-
-        {error ? <CandidateErrorBanner>{error}</CandidateErrorBanner> : null}
-
-        <div className="border border-border-default bg-surface rounded-xl p-6 space-y-4">
-          <p className="text-sm text-text-secondary whitespace-pre-wrap">{question.prompt || 'No prompt returned by backend.'}</p>
-
-            {runtimeState?.contentType === 'mcq' ? (
-              <div className="space-y-3">
-                {(question.options || []).map((option) => {
-                  const checked = selectedOptionIds.includes(String(option.id))
-                  return (
-                    <label key={option.id} className={`flex items-start gap-3 rounded-lg px-4 py-3 cursor-pointer border transition-all ${
-                      checked
-                        ? 'bg-brand-tint border-brand-border text-text-primary'
-                        : 'bg-surface-muted border-border-default text-text-secondary hover:border-border-strong hover:bg-surface'
-                    }`}>
-                      <input
-                        type={selectionMode === 'single' ? 'radio' : 'checkbox'}
-                        name="mcq-option"
-                        checked={checked}
-                        onChange={() => handleMcqToggle(String(option.id), selectionMode)}
-                      />
-                      <span className="text-sm">{option.text}</span>
-                    </label>
-                  )
-                })}
-              </div>
-            ) : null}
-
-            {runtimeState?.contentType === 'free_text' ? (
-              <textarea
-                className="w-full min-h-48 bg-surface border border-border-default rounded-xl p-3 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand-border"
-                value={freeTextValue}
-                onChange={(event) => setFreeTextValue(event.target.value)}
-              />
-            ) : null}
-
-            {runtimeState?.contentType === 'ranking' ? (
-              <div className="space-y-3">
-                {rankingOptions.map((option, index) => (
-                  <div key={option.id} className="border border-border-default rounded-xl p-3 flex items-center justify-between gap-4 bg-surface">
-                    <div className="text-sm">
-                      <div className="font-mono text-xs text-text-muted">rank {index + 1}</div>
-                      <div className="text-text-primary">{option.text}</div>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        className="px-2 py-1 border border-border-default rounded text-xs text-text-secondary hover:text-text-primary hover:border-border-strong transition-colors disabled:opacity-40"
-                        onClick={() => moveRankingOption(index, -1)}
-                        disabled={index === 0}
-                      >
-                        Up
-                      </button>
-                      <button
-                        type="button"
-                        className="px-2 py-1 border border-border-default rounded text-xs text-text-secondary hover:text-text-primary hover:border-border-strong transition-colors disabled:opacity-40"
-                        onClick={() => moveRankingOption(index, 1)}
-                        disabled={index === rankingOptions.length - 1}
-                      >
-                        Down
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : null}
-
-          <div className="flex gap-3">
-            <CandidateSecondaryButton onClick={saveDraft} disabled={saving || submitting}>
-              {saving ? 'Saving…' : 'Save Draft'}
-            </CandidateSecondaryButton>
-            <CandidatePrimaryButton
-              className="w-auto px-4 py-2"
-              onClick={runtimeState?.contentType === 'free_text' || runtimeState?.contentType === 'ranking' ? () => setScreen('review') : submitSection}
-              disabled={submitting}
-            >
-              {runtimeState?.contentType === 'free_text' || runtimeState?.contentType === 'ranking'
-                ? 'Review & Submit'
-                : (submitting ? 'Submitting…' : 'Submit Section')}
-            </CandidatePrimaryButton>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
+  // Every screen this page can be in is handled above. Anything else is a bug
+  // in the state machine rather than something the candidate should see as a
+  // blank page.
+  return <CandidateCenteredLoadingState label="Loading assessment…" />
 }
