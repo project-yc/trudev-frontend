@@ -25,7 +25,7 @@ export default function ChatAvatar({ role, name }) {
       aria-hidden="true"
       className={cn(
         'flex h-9 w-9 shrink-0 items-center justify-center rounded-full',
-        'border border-border-default bg-surface-raised text-text-secondary',
+        'border border-border bg-surface-raised text-text-secondary',
       )}
     >
       {initial
