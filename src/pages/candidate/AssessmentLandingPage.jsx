@@ -203,7 +203,7 @@ export default function AssessmentLandingPage() {
           <ul className="space-y-2">
             {[
               'Ensure a stable internet connection',
-              'Each section is timed — the coding IDE has a Pause button that stops the clock, but the section timer continues for other section types',
+              'Each section is timed and the clock keeps running once a section has started',
               'Your answers are saved when you submit each section',
             ].map((tip) => (
               <li key={tip} className="flex items-start gap-2.5 text-text-secondary text-sm">

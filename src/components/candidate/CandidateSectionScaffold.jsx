@@ -1,3 +1,4 @@
+import ReportIssueLink from './ReportIssueLink'
 import {
   CandidateThemeScope,
   loadCandidateBranding,
@@ -51,7 +52,8 @@ export function CandidatePageShell({ children, maxWidth = 'max-w-lg' }) {
 
 export function CandidateFooter() {
   return (
-    <div className="flex items-center justify-center gap-1.5">
+    <div className="flex flex-col items-center gap-2">
+      <div className="flex items-center justify-center gap-1.5">
       <span className="text-text-faint text-xs">Powered by</span>
       <img
         src={TRUDEV_LOGO}
@@ -59,6 +61,10 @@ export function CandidateFooter() {
         className="h-4 w-auto object-contain rounded-sm opacity-50"
       />
       <span className="font-wordmark text-text-muted text-xs font-medium tracking-tight">TruDev</span>
+      </div>
+      {/* Every candidate page shell renders this footer, so this is the one
+          place a candidate can report a broken page, timer or workspace. */}
+      <ReportIssueLink />
     </div>
   )
 }
@@ -108,6 +114,8 @@ export function CandidateCenteredErrorState({ title, message }) {
             <h1 className="text-text-primary text-xl font-bold">{title}</h1>
             <p className="text-text-secondary text-sm">{message}</p>
           </div>
+          {/* An error screen is exactly where a candidate needs to tell us. */}
+          <ReportIssueLink />
         </div>
       </div>
     </CandidateThemeScope>
