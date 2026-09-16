@@ -39,15 +39,26 @@ export function getReportGradingState(report) {
   const assessmentStatus = report?.assessment_status || null;
   const status = report?.status || report?.report_status || null;
 
-  if (status === 'failed' || report?.report_status === 'failed' || ungradedItems > 0) {
+  // `needs_manual_grading` is the backend holding a report whose grading failed
+  // on our end (grader outage / engine failure) even after retries. It is NOT
+  // finalized and carries no comparable headline score on purpose — publishing a
+  // percentage over only the sections that graded would rank this candidate on a
+  // different basis than everyone graded in full. It surfaces as an action for a
+  // human, not as the candidate's score.
+  const needsManualGrading = assessmentStatus === 'needs_manual_grading'
+    || status === 'needs_manual_grading';
+
+  if (needsManualGrading || status === 'failed' || report?.report_status === 'failed' || ungradedItems > 0) {
     return {
       state: GRADING_STATE.FAILED,
       score: null,
       ungradedItems,
-      label: 'Grading failed',
+      label: needsManualGrading || ungradedItems > 0 ? 'Needs manual grading' : 'Grading failed',
       detail: ungradedItems > 0
-        ? `${ungradedItems} item${ungradedItems === 1 ? '' : 's'} could not be graded — this is not the candidate's score.`
-        : 'Report generation failed — this is not the candidate\'s score.',
+        ? `${ungradedItems} item${ungradedItems === 1 ? '' : 's'} could not be graded on our end — this is not the candidate's score. Grade or re-run the section to finalize.`
+        : (needsManualGrading
+            ? 'A section could not be graded on our end — grade or re-run it to finalize. This is not the candidate\'s score.'
+            : 'Report generation failed — this is not the candidate\'s score.'),
     };
   }
 
