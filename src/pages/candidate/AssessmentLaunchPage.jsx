@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import { IconChevronRight } from '@tabler/icons-react'
 import { getAssessmentOverview, saveMcqSession } from '../../api/candidate/assessmentSession'
 import { beginProvisioning, getProvisioning } from '../../api/candidate/candidateProvisioning'
 import { buildCandidateSectionRoute, isConnectivityError, saveCandidateRuntimeState } from '../../api/candidate/runtime'
@@ -11,12 +10,16 @@ import {
   CandidateSectionIntroScreen,
 } from '../../components/candidate/CandidateSectionScaffold'
 import { handleAssessmentStartResponse } from './assessmentStartNavigation'
+import { setCandidateContext, trackCandidate } from '../../analytics/candidateAnalytics'
 
-// Verbatim from the original coding-section intro (the runtime page's overview
-// screen), so this page reads exactly as that intro always has.
+// What the candidate is actually about to walk into, rather than a description
+// of the button they are looking at. The old pair ("Click Start Section to
+// begin the workspace boot sequence") narrated the UI and said nothing about
+// the task.
 const CODING_TIPS = [
-  'Click Start Section to begin the workspace boot sequence.',
-  'You will only be redirected once the workspace is reachable.',
+  'You will work in a full editor in your browser — a real repository, not a text box.',
+  'Starting a workspace takes up to a couple of minutes on a cold start. You only enter once it is genuinely reachable.',
+  'The workspace has a Pause button that stops the clock, and your work is saved when you pause.',
 ]
 
 // Hand-off between the terms page and the coding section runtime for a
@@ -35,6 +38,11 @@ export default function AssessmentLaunchPage() {
   const [error, setError] = useState('')
   const [starting, setStarting] = useState(false)
   const dispatchedRef = useRef(false)
+
+  useEffect(() => {
+    setCandidateContext({ stage: 'launch' })
+    trackCandidate('candidate_stage_viewed', { stage: 'launch' })
+  }, [])
 
   // A hard refresh on this URL loses the router state that carried the overview.
   useEffect(() => {
@@ -76,6 +84,13 @@ export default function AssessmentLaunchPage() {
   const handleStartSection = async () => {
     setError('')
     setStarting(true)
+    // Whether provisioning already finished while they read the intro is the
+    // difference between an instant start and a wait on the boot screen, so it
+    // is worth knowing which one the candidate got.
+    trackCandidate('candidate_section_started', {
+      section_type: 'technical_task',
+      provisioning_status: getProvisioning(token)?.status || 'none',
+    })
     try {
       // Reuse the in-flight/finished provisioning; re-fire only if it failed or
       // was lost. Usually already resolved from the time spent reading the
@@ -120,7 +135,7 @@ export default function AssessmentLaunchPage() {
   }
 
   if (loading) {
-    return <CandidateCenteredLoadingState label="Preparing your assessment..." />
+    return <CandidateCenteredLoadingState label="Preparing your assessment…" />
   }
 
   if (!overview) {
@@ -135,7 +150,7 @@ export default function AssessmentLaunchPage() {
   if (!firstIsCoding) {
     return error
       ? <CandidateCenteredErrorState title="Unable to start assessment" message={error} />
-      : <CandidateCenteredLoadingState label="Starting your assessment..." />
+      : <CandidateCenteredLoadingState label="Starting your assessment…" />
   }
 
   const timer = firstSection?.timer_minutes
@@ -145,20 +160,19 @@ export default function AssessmentLaunchPage() {
       eyebrow="Coding Section"
       title={firstSection?.name || 'Coding Task'}
       subtitle={overview.assessment_name || 'Assessment progression'}
-      metaItems={['Coding', ...(timer ? [`${timer} min`] : [])]}
+      sections={overview.sections || []}
+      currentIndex={0}
+      stats={[
+        { value: 'Coding', label: 'Format' },
+        ...(timer
+          ? [{ value: timer, unit: 'min', label: 'On the clock' }]
+          : [{ value: 'Untimed', label: 'On the clock' }]),
+      ]}
       tips={CODING_TIPS}
       error={error}
       actionDisabled={starting}
-      actionContent={
-        starting ? (
-          <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin opacity-60" />
-        ) : (
-          <>
-            Start Section
-            <IconChevronRight size={16} />
-          </>
-        )
-      }
+      actionContent={starting ? 'Starting…' : 'Start section'}
+      actionNote="Your workspace is already warming up in the background."
       onAction={handleStartSection}
     />
   )
