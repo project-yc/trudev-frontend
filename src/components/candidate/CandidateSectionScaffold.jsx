@@ -1,53 +1,44 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// CandidateSectionScaffold — the shared pieces of the pre-section screens.
+//
+// The flow screens themselves (landing, terms, launch, section intros,
+// completion) now live in `CandidateFlowShell`, which is the same ExamShell the
+// sections run in. What is left here is:
+//
+//   • `CandidateSectionIntroScreen` / `CandidateCompletionScreen` — the two
+//     shapes enough screens share to be worth a component, both built on the
+//     flow shell.
+//   • the loading and error states, which are the one case that genuinely
+//     cannot inherit the chrome: they render before the overview (and so before
+//     the org's branding and the section list) is known.
+//
+// The old centered-card `CandidatePageShell` and its two bespoke buttons are
+// gone: every screen that mounted them now uses the flow shell and
+// `ExamButton`, so the candidate flow has one button vocabulary rather than
+// two with different radii, heights and press behaviour.
+// ─────────────────────────────────────────────────────────────────────────────
+
+import { useEffect } from 'react'
+import { motion as Motion } from 'motion/react'
+import { IconArrowRight, IconCheck } from '@tabler/icons-react'
 import {
   CandidateThemeScope,
   loadCandidateBranding,
 } from '../../theme/CandidateThemeProvider.jsx'
+import { trackCandidate } from '../../analytics/candidateAnalytics'
+import CandidateFlowShell, {
+  FlowErrorBanner,
+  FlowEyebrow,
+  FlowLead,
+  FlowSectionLabel,
+  FlowStat,
+  FlowTitle,
+} from './CandidateFlowShell'
+import { useFlowRise } from './flowMotion'
+import ExamButton from './exam/ExamButton'
 
 // TruDev logo — served from /public
 const TRUDEV_LOGO = '/Green Black Minimal Professional Letter D Business Corporate Logo 1234.png'
-
-// Org header rendered above the content card — shows the hiring org's logo,
-// candidate-facing name, and optional tagline. Keeps the page feeling branded
-// without burying the form card in chrome.
-function OrgBrandHeader({ branding }) {
-  const { logo_url, candidate_name, tagline } = branding || {}
-  if (!logo_url && !candidate_name) return null
-  return (
-    <div className="flex flex-col items-center gap-2.5 text-center animate-fadeIn">
-      {logo_url && (
-        <img
-          src={logo_url}
-          alt={candidate_name || 'Organization'}
-          className="h-12 w-auto object-contain"
-        />
-      )}
-      {candidate_name && (
-        <p className="text-text-primary font-bold text-lg leading-snug">{candidate_name}</p>
-      )}
-      {tagline && (
-        <p className="text-text-muted text-sm">{tagline}</p>
-      )}
-    </div>
-  )
-}
-
-export function CandidatePageShell({ children, maxWidth = 'max-w-lg' }) {
-  const branding = loadCandidateBranding()
-
-  return (
-    <CandidateThemeScope branding={branding}>
-      <div className="min-h-screen bg-page flex flex-col items-center justify-center px-4 py-10 gap-6">
-        <OrgBrandHeader branding={branding} />
-        <div className={`w-full ${maxWidth} bg-surface rounded-2xl border border-border-default shadow-lift animate-slideInUp`}>
-          <div className="p-8 space-y-6">
-            {children}
-          </div>
-        </div>
-        <CandidateFooter />
-      </div>
-    </CandidateThemeScope>
-  )
-}
 
 export function CandidateFooter() {
   return (
@@ -63,50 +54,156 @@ export function CandidateFooter() {
   )
 }
 
-export function CandidateCompletionScreen({
-  title = 'Assessment Complete',
-  message,
-  details,
-  maxWidth = 'max-w-md',
-}) {
+// ── Completion ───────────────────────────────────────────────────────────────
+
+// What actually happens after a candidate submits, in order. The old completion
+// screen was a grey circle, a tick glyph and one sentence — the last thing
+// someone sees after an hour of work, and the screen most likely to be
+// screenshotted. Saying what happens next is the difference between "done" and
+// "abandoned".
+const DEFAULT_NEXT_STEPS = [
+  {
+    title: 'Your answers are in',
+    body: 'Everything you submitted is recorded. Nothing else is needed from you.',
+    state: 'done',
+  },
+  {
+    title: 'Grading runs now',
+    body: 'Automatic scoring finishes in the background, usually within a few minutes.',
+    state: 'current',
+  },
+  {
+    title: 'The hiring team reviews',
+    body: 'They see your work and the reasoning behind it, not just a score. They will be in touch about next steps.',
+    state: 'upcoming',
+  },
+]
+
+function NextStep({ step, isLast }) {
+  const { title, body, state } = step
   return (
-    <CandidatePageShell maxWidth={maxWidth}>
-      <div className="flex flex-col items-center gap-5 text-center">
-        <div className="w-16 h-16 rounded-full bg-brand-tint border border-brand-border flex items-center justify-center">
-          <span className="text-brand text-2xl font-bold">✓</span>
-        </div>
-        <div className="space-y-2">
-          <h1 className="text-text-primary text-2xl font-bold tracking-tight">{title}</h1>
-          <p className="text-text-secondary text-sm leading-relaxed">{message}</p>
-        </div>
-        {details ?? null}
+    <li className="flex gap-3.5">
+      <div className="flex flex-col items-center">
+        <span
+          className={
+            state === 'done'
+              ? 'flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-ember-pale text-[#3A1D07]'
+              : state === 'current'
+                ? 'flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-brand bg-transparent'
+                : 'flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border bg-surface-muted'
+          }
+        >
+          {state === 'done' ? (
+            <IconCheck size={12} strokeWidth={3} />
+          ) : state === 'current' ? (
+            <span className="h-1.5 w-1.5 rounded-full bg-brand" />
+          ) : null}
+        </span>
+        {!isLast && <span className="mt-1 w-px flex-1 bg-border-subtle" />}
       </div>
-    </CandidatePageShell>
+      <div className={isLast ? 'pb-0' : 'pb-5'}>
+        <p className="text-[14px] font-semibold leading-snug text-text-primary">{title}</p>
+        <p className="mt-1 text-[13px] leading-[1.6] text-text-secondary">{body}</p>
+      </div>
+    </li>
   )
 }
+
+export function CandidateCompletionScreen({
+  title = 'That is everything',
+  message,
+  details,
+  steps = DEFAULT_NEXT_STEPS,
+  sections = [],
+}) {
+  const branding = loadCandidateBranding()
+  const rise = useFlowRise()
+
+  return (
+    <CandidateFlowShell
+      branding={branding}
+      sections={sections}
+      // Every section is behind them. One past the end marks them all done.
+      currentIndex={sections.length}
+      subtitle="Assessment complete"
+    >
+      <Motion.div {...rise(0)} className="flex flex-col gap-3">
+        <span className="flex h-12 w-12 items-center justify-center rounded-2xl border border-brand-border bg-brand-tint">
+          <IconCheck size={22} strokeWidth={2.5} className="text-brand" />
+        </span>
+        <FlowTitle className="mt-2">{title}</FlowTitle>
+        <FlowLead>
+          {message
+            || 'Your responses have been submitted. You can close this tab — nothing else is required from you.'}
+        </FlowLead>
+      </Motion.div>
+
+      {steps.length > 0 && (
+        <Motion.div {...rise(0.1)} className="mt-8 flex flex-col gap-3.5">
+          <FlowSectionLabel>What happens next</FlowSectionLabel>
+          <ol className="flex flex-col rounded-2xl border border-border bg-surface px-4 py-4">
+            {steps.map((step, index) => (
+              <NextStep key={step.title} step={step} isLast={index === steps.length - 1} />
+            ))}
+          </ol>
+        </Motion.div>
+      )}
+
+      {details ? <Motion.div {...rise(0.18)} className="mt-6">{details}</Motion.div> : null}
+
+      <Motion.div {...rise(0.24)} className="mt-8 flex items-center justify-center gap-1.5 opacity-50">
+        <span className="text-[11px] text-text-faint">Powered by</span>
+        <img src={TRUDEV_LOGO} alt="" className="h-3.5 w-auto rounded-[2px] object-contain" />
+        <span className="font-wordmark text-[11px] font-medium tracking-tight text-text-muted">
+          TruDev
+        </span>
+      </Motion.div>
+    </CandidateFlowShell>
+  )
+}
+
+// ── Pre-chrome states ────────────────────────────────────────────────────────
+// These render before the overview resolves, so there is no org branding and no
+// section list to build the flow chrome from. They stay deliberately bare.
 
 export function CandidateCenteredLoadingState({ label }) {
   return (
     <CandidateThemeScope>
-      <div className="min-h-screen bg-page flex items-center justify-center gap-3 text-text-secondary text-sm">
-        <div className="w-4 h-4 border-2 border-border-strong border-t-brand rounded-full animate-spin" />
-        {label}
+      <div className="relative min-h-screen overflow-hidden bg-page">
+        <div aria-hidden="true" className="flow-ambient" />
+        <div className="relative z-10 flex min-h-screen flex-col items-center justify-center gap-4">
+          <span className="h-7 w-7 animate-spin rounded-full border-2 border-border-strong border-t-brand" />
+          <p className="text-[13.5px] text-text-muted">{label}</p>
+        </div>
       </div>
     </CandidateThemeScope>
   )
 }
 
 export function CandidateCenteredErrorState({ title, message }) {
+  // This is the dead end — a full-screen error with no way forward. Every page
+  // that can strand a candidate renders it, so capturing here covers them all.
+  // The `title` is a fixed string from the calling page, never candidate data.
+  useEffect(() => {
+    trackCandidate('candidate_error_shown', { title: title || null })
+  }, [title])
+
   return (
     <CandidateThemeScope>
-      <div className="min-h-screen bg-page flex items-center justify-center p-6">
-        <div className="w-full max-w-md space-y-6 animate-slideInUp text-center">
-          <div className="w-14 h-14 rounded-full bg-error-bg border border-error-border flex items-center justify-center mx-auto">
-            <span className="text-error text-2xl font-bold">!</span>
-          </div>
-          <div className="space-y-2">
-            <h1 className="text-text-primary text-xl font-bold">{title}</h1>
-            <p className="text-text-secondary text-sm">{message}</p>
+      <div className="relative min-h-screen overflow-hidden bg-page">
+        <div aria-hidden="true" className="flow-ambient" />
+        <div className="relative z-10 flex min-h-screen items-center justify-center p-6">
+          <div className="w-full max-w-[440px] animate-slideInUp text-center">
+            <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-error-border bg-error-bg">
+              <span className="text-[24px] font-bold text-error">!</span>
+            </span>
+            <h1 className="mt-5 text-[22px] font-semibold tracking-[-0.02em] text-text-primary">
+              {title}
+            </h1>
+            <p className="mt-2 text-[14px] leading-[1.65] text-text-secondary">{message}</p>
+            <div className="mt-8">
+              <CandidateFooter />
+            </div>
           </div>
         </div>
       </div>
@@ -114,116 +211,105 @@ export function CandidateCenteredErrorState({ title, message }) {
   )
 }
 
-export function CandidateErrorBanner({ children }) {
-  return (
-    <div className="rounded-xl border border-error-border bg-error-bg px-4 py-3 text-sm text-error">
-      {children}
-    </div>
-  )
-}
+// ── Section intro ────────────────────────────────────────────────────────────
 
-export function CandidatePrimaryButton({ children, className = '', disabled, ...props }) {
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      className={`w-full flex items-center justify-center gap-2 py-3.5
-        bg-brand hover:bg-brand-hover text-on-brand
-        font-semibold rounded-xl text-sm
-        transition-all duration-150 ease-out
-        active:scale-[0.97]
-        disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100
-        ${className}`}
-      {...props}
-    >
-      {children}
-    </button>
-  )
-}
-
-export function CandidateSecondaryButton({ children, className = '', ...props }) {
-  return (
-    <button
-      type="button"
-      className={`px-4 py-2.5 border border-border-default text-text-secondary
-        hover:text-text-primary hover:border-border-strong
-        rounded-xl text-sm font-medium transition-all duration-150 ease-out active:scale-[0.97]
-        disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
-      {...props}
-    >
-      {children}
-    </button>
-  )
-}
-
+/**
+ * The screen between two sections: what is coming, how long, what the rules are,
+ * one button to start it. Shared by the coding launch hand-off, the adaptive
+ * interview intro and the generic section intro in the runtime page.
+ *
+ * `metaItems` used to be free-form pills; they are stat tiles now, quoted the
+ * same way `ExamIntro` quotes them, so a section intro and the section's own
+ * start screen agree with each other.
+ */
 export function CandidateSectionIntroScreen({
   eyebrow,
   title,
   subtitle,
-  metaItems = [],
+  stats = [],
   noticeTitle = 'Before you begin',
   tips = [],
   error,
   actionContent,
   onAction,
   actionDisabled = false,
-  maxWidth = 'max-w-lg',
+  actionNote,
   consent,
+  sections = [],
+  // The section runtime knows its own position and the total but not the other
+  // sections' names, so it passes a count and gets the bar-only stepper.
+  sectionCount,
+  currentIndex = -1,
 }) {
-  return (
-    <CandidatePageShell maxWidth={maxWidth}>
-      <div className="text-center space-y-2">
-        <p className="text-brand-deep text-xs font-semibold uppercase tracking-widest">
-          {eyebrow}
-        </p>
-        <h1 className="text-text-primary text-2xl font-bold tracking-tight">{title}</h1>
-        {subtitle ? <p className="text-text-secondary text-sm">{subtitle}</p> : null}
-      </div>
+  const branding = loadCandidateBranding()
+  const rise = useFlowRise()
 
-      {metaItems.length > 0 ? (
-        <div className="flex flex-wrap items-center justify-center gap-2.5">
-          {metaItems.map((item, index) => (
-            <span
-              key={index}
-              className="inline-flex items-center gap-1.5 text-xs text-text-secondary bg-surface-muted border border-border-default px-2.5 py-1 rounded-full"
-            >
-              {item}
-            </span>
-          ))}
-        </div>
+  return (
+    <CandidateFlowShell
+      branding={branding}
+      sections={sections}
+      sectionCount={sectionCount}
+      currentIndex={currentIndex}
+      subtitle={subtitle}
+      action={(
+        <ExamButton size="lg" sweep={!actionDisabled} disabled={actionDisabled} onClick={onAction}>
+          {actionContent}
+          <IconArrowRight size={17} />
+        </ExamButton>
+      )}
+      actionNote={actionNote}
+    >
+      <Motion.div {...rise(0)} className="flex flex-col gap-3">
+        {eyebrow ? <FlowEyebrow>{eyebrow}</FlowEyebrow> : null}
+        <FlowTitle>{title}</FlowTitle>
+        {subtitle ? <FlowLead>{subtitle}</FlowLead> : null}
+      </Motion.div>
+
+      {stats.length > 0 ? (
+        <Motion.div {...rise(0.08)} className="mt-6 flex gap-3">
+          {stats.map((stat) => <FlowStat key={stat.label} {...stat} />)}
+        </Motion.div>
       ) : null}
 
       {tips.length > 0 ? (
-        <div className="bg-surface-muted border border-border-default rounded-xl px-4 py-4 space-y-2.5">
-          <p className="text-text-muted text-xs font-semibold uppercase tracking-wide">{noticeTitle}</p>
-          <ul className="space-y-2">
+        <Motion.div {...rise(0.16)} className="mt-7 flex flex-col gap-3">
+          <FlowSectionLabel>{noticeTitle}</FlowSectionLabel>
+          <ul className="flex flex-col divide-y divide-border-subtle overflow-hidden rounded-2xl border border-border bg-surface">
             {tips.map((tip, index) => (
-              <li key={index} className="flex items-start gap-2.5 text-text-secondary text-sm">
-                <span className="w-1 h-1 rounded-full bg-text-muted shrink-0 mt-2" />
-                {tip}
+              <li key={index} className="flex items-start gap-3 px-4 py-3.5">
+                <span aria-hidden="true" className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-ember" />
+                <span className="text-[13.5px] leading-[1.65] text-text-secondary">{tip}</span>
               </li>
             ))}
           </ul>
-        </div>
+        </Motion.div>
       ) : null}
 
       {consent ? (
-        <label className="flex items-start gap-3 rounded-xl border border-border-default bg-surface-muted px-4 py-3.5 text-sm text-text-secondary cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={consent.checked}
-            onChange={(e) => consent.onChange(e.target.checked)}
-            className="mt-0.5 w-4 h-4 shrink-0 rounded border-border-strong accent-brand cursor-pointer"
-          />
-          <span>{consent.label}</span>
-        </label>
+        <Motion.div {...rise(0.22)} className="mt-6">
+          <label
+            className={`flex cursor-pointer select-none items-start gap-3.5 rounded-2xl border px-4 py-4 transition-colors duration-200 ${
+              consent.checked
+                ? 'border-brand-border bg-brand-tint'
+                : 'border-border bg-surface hover:border-border-strong'
+            }`}
+          >
+            <input
+              type="checkbox"
+              checked={consent.checked}
+              onChange={(e) => consent.onChange(e.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded border-border-strong accent-brand"
+            />
+            <span className="text-[13.5px] leading-[1.6] text-text-secondary">{consent.label}</span>
+          </label>
+        </Motion.div>
       ) : null}
 
-      {error ? <CandidateErrorBanner>{error}</CandidateErrorBanner> : null}
-
-      <CandidatePrimaryButton onClick={onAction} disabled={actionDisabled}>
-        {actionContent}
-      </CandidatePrimaryButton>
-    </CandidatePageShell>
+      {error ? (
+        <div className="mt-5">
+          <FlowErrorBanner>{error}</FlowErrorBanner>
+        </div>
+      ) : null}
+    </CandidateFlowShell>
   )
 }
