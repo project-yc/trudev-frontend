@@ -38,7 +38,7 @@ export default function LogSection({ section }) {
           'flex w-full items-center justify-between gap-3 rounded-xl border border-border-subtle bg-surface',
           'px-3.5 py-3 text-left transition-colors duration-150',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
-          hasMore ? 'hover:border-border-default hover:bg-surface-hover' : 'cursor-default',
+          hasMore ? 'hover:border-border hover:bg-surface-hover' : 'cursor-default',
         )}
       >
         <span className="min-w-0 truncate font-mono text-[12.5px] leading-[1.4] text-text-secondary">
