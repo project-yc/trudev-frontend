@@ -9,6 +9,9 @@ import {
   IconLayoutGrid,
 } from '@tabler/icons-react'
 import {
+  autosaveFreeTextRuntime,
+  autosaveMcqRuntime,
+  autosaveRankingRuntime,
   getFreeTextRuntime,
   getMcqRuntime,
   getRankingRuntime,
@@ -37,6 +40,7 @@ import {
   FullscreenToggle,
 } from './exam/ExamStatus'
 import QuestionMap, { QuestionMapLegend } from './exam/QuestionMap'
+import { SectionStepperCompact } from './exam/SectionStepper'
 import QuestionMapSheet from './exam/QuestionMapSheet'
 import QuestionStage from './exam/QuestionStage'
 import SubmitDialog from './exam/SubmitDialog'
@@ -51,6 +55,41 @@ const RUNTIME_LOADERS = {
   mcq: getMcqRuntime,
   free_text: getFreeTextRuntime,
   ranking: getRankingRuntime,
+}
+
+// Used only when the section's position is unknown, so the intro still names
+// what kind of section it is. It said "MCQ section" for every type, which was
+// harmless while only MCQ reached this component and wrong the moment free
+// text and ranking did.
+const SECTION_KIND_LABELS = {
+  mcq: 'Multiple choice section',
+  free_text: 'Written answer section',
+  ranking: 'Ranking section',
+}
+
+// Per-item autosave, debounced. `saveSectionAnswers` only ever wrote to
+// sessionStorage, which is gone the moment the tab is closed — survivable for
+// MCQ, but this component now renders written answers too, and a paragraph
+// someone spent ten minutes on must not depend on them reaching the submit
+// button in the same tab.
+//
+// Fire-and-forget: sessionStorage is still the fast path, and a failed autosave
+// must never interrupt someone mid-sentence. The submit is what makes an answer
+// final; this only makes it recoverable.
+const AUTOSAVE_DEBOUNCE_MS = 2500
+
+const AUTOSAVE_WRITERS = {
+  mcq: (itemAttemptId, token, value) => autosaveMcqRuntime(itemAttemptId, token, value || []),
+  free_text: (itemAttemptId, token, value) => autosaveFreeTextRuntime(itemAttemptId, token, value || ''),
+  // The ranking PUT rejects a partial order ("All ranking options must be
+  // submitted"), and an untouched list is deliberately stored as empty — so
+  // there is nothing to autosave until the candidate has actually placed
+  // something.
+  ranking: (itemAttemptId, token, value) => (
+    (value || []).length > 0
+      ? autosaveRankingRuntime(itemAttemptId, token, value.map(String))
+      : Promise.resolve()
+  ),
 }
 
 const emptyAnswer = (contentType) => (contentType === 'free_text' ? '' : [])
@@ -184,6 +223,10 @@ export default function CandidateMcqSectionExperience({
   const syncTimerRef = useRef(null)
   const elapsedRef = useRef(0)
   const cleanupRef = useRef(null)
+  // itemAttemptId -> pending debounce timer, so two items edited in quick
+  // succession both get saved rather than the second cancelling the first.
+  const autosaveTimersRef = useRef({})
+  const answersRef = useRef({})
 
   const branding = useMemo(() => loadCandidateBranding(), [])
 
@@ -193,20 +236,39 @@ export default function CandidateMcqSectionExperience({
   )
 
   useEffect(() => {
+    const autosaveTimers = autosaveTimersRef.current
     return () => {
       clearInterval(timerRef.current)
       clearInterval(syncTimerRef.current)
       if (cleanupRef.current) cleanupRef.current()
+      Object.values(autosaveTimers).forEach(window.clearTimeout)
     }
   }, [])
 
   // Persistence only — the "saved" acknowledgement is stamped by the handlers
   // that change answers, so this effect never feeds state back into render.
   useEffect(() => {
+    answersRef.current = answers
     if (sectionId && Object.keys(answers).length > 0) {
       saveSectionAnswers(sectionId, answers)
     }
   }, [answers, sectionId])
+
+  // Debounced server-side autosave for one item. Reads the answer at flush time
+  // rather than closing over it, so a burst of keystrokes sends the final text
+  // once instead of an intermediate value.
+  const scheduleAutosave = useCallback((itemAttemptId) => {
+    const write = AUTOSAVE_WRITERS[contentType]
+    if (!write || !sectionToken || !itemAttemptId) return
+
+    window.clearTimeout(autosaveTimersRef.current[itemAttemptId])
+    autosaveTimersRef.current[itemAttemptId] = window.setTimeout(() => {
+      delete autosaveTimersRef.current[itemAttemptId]
+      // A 409 here means the item was already finalized — nothing to recover,
+      // and nothing the candidate can do about it.
+      write(itemAttemptId, sectionToken, answersRef.current[itemAttemptId]).catch(() => {})
+    }, AUTOSAVE_DEBOUNCE_MS)
+  }, [contentType, sectionToken])
 
   const doTimerSync = useCallback(() => {
     if (!assessmentInstanceId || !sectionToken || !sectionId) return
@@ -310,12 +372,17 @@ export default function CandidateMcqSectionExperience({
   const setAnswer = useCallback((itemAttemptId, value) => {
     setSavedAt(Date.now())
     setAnswers((prev) => ({ ...prev, [itemAttemptId]: value }))
-  }, [])
+    scheduleAutosave(itemAttemptId)
+  }, [scheduleAutosave])
 
   const doSubmit = useCallback(async () => {
     clearInterval(timerRef.current)
     clearInterval(syncTimerRef.current)
     if (cleanupRef.current) cleanupRef.current()
+    // The batch submit carries every answer anyway, so a debounce still in
+    // flight has nothing to add and would only race the finalization.
+    Object.values(autosaveTimersRef.current).forEach(window.clearTimeout)
+    autosaveTimersRef.current = {}
 
     setScreen('submitting')
     setShowConfirm(false)
@@ -381,7 +448,8 @@ export default function CandidateMcqSectionExperience({
     if (!id) return
     setSavedAt(Date.now())
     setAnswers((prev) => ({ ...prev, [id]: emptyAnswer(contentType) }))
-  }, [contentType, currentIndex, questions])
+    scheduleAutosave(id)
+  }, [contentType, currentIndex, questions, scheduleAutosave])
 
   const jumpToQuestion = useCallback((index) => {
     goTo(index)
@@ -390,8 +458,20 @@ export default function CandidateMcqSectionExperience({
   }, [goTo])
 
   // ── Shared chrome ───────────────────────────────────────────────
+  // `sectionOrder` from the backend is zero-based (see AdaptiveInterviewTopBar),
+  // which is already the index the stepper wants.
+  const sectionIndex = Number.isFinite(Number(sectionOrder)) ? Number(sectionOrder) : -1
+
   const topBar = (
-    <ExamTopBar brand={<ExamBrand branding={branding} fallback={sectionName} />}>
+    <ExamTopBar
+      brand={<ExamBrand branding={branding} fallback={sectionName} subtitle={sectionName} />}
+    >
+      {/* Where this section sits in the assessment. The MCQ top bar carried no
+          section context at all — not even on desktop, where the interview's
+          top bar has always shown it. */}
+      {sectionCount > 0 && (
+        <SectionStepperCompact currentIndex={sectionIndex} count={sectionCount} />
+      )}
       <AutoSaveChip savedAt={savedAt} />
       <ExamTimer remainingSeconds={remainingSeconds} elapsedSeconds={elapsedSeconds} />
       <ConnectionStatus />
@@ -424,7 +504,13 @@ export default function CandidateMcqSectionExperience({
     return (
       <ExamShell branding={branding} topBar={topBar}>
         <ExamIntro
-          eyebrow={sectionOrder && sectionCount ? `Section ${sectionOrder} of ${sectionCount}` : 'MCQ section'}
+          // `sectionIndex + 1`, not `sectionOrder`: the backend's order is
+          // zero-based, so this used to say "Section 3 of 4" on the fourth
+          // section — and, now that the top bar carries a stepper, disagree
+          // with it on screen.
+          eyebrow={sectionIndex >= 0 && sectionCount
+            ? `Section ${sectionIndex + 1} of ${sectionCount}`
+            : SECTION_KIND_LABELS[contentType] || SECTION_KIND_LABELS.mcq}
           title={sectionName}
           stats={[
             { value: orderedSectionItems.length, label: 'Questions' },
@@ -527,6 +613,7 @@ export default function CandidateMcqSectionExperience({
         <QuestionStage
           question={currentQuestion}
           index={currentIndex}
+          total={totalCount}
           contentType={contentType}
           answer={currentAnswer}
           onAnswerChange={(value) => setAnswer(currentQuestion.item_attempt_id, value)}
