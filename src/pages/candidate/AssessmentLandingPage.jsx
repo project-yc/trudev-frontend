@@ -1,84 +1,64 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import {
-  IconBrain,
-  IconChevronRight,
-  IconClock,
-  IconArrowsSort,
-  IconCode,
-  IconHelpCircle,
-  IconListCheck,
-  IconMessages,
-  IconWriting,
-} from '@tabler/icons-react'
+import { motion as Motion } from 'motion/react'
+import { IconArrowRight, IconBrain, IconClock } from '@tabler/icons-react'
 import { getAssessmentOverview, startAssessment } from '../../api/candidate/assessmentSession'
-import { saveCandidateBranding } from '../../theme/CandidateThemeProvider.jsx'
+import { loadCandidateBranding, saveCandidateBranding } from '../../theme/CandidateThemeProvider.jsx'
 import {
   CandidateCenteredErrorState,
   CandidateCenteredLoadingState,
-  CandidateErrorBanner,
-  CandidatePageShell,
-  CandidatePrimaryButton,
 } from '../../components/candidate/CandidateSectionScaffold'
+import CandidateFlowShell, {
+  FlowErrorBanner,
+  FlowEyebrow,
+  FlowLead,
+  FlowSectionLabel,
+  FlowStat,
+  FlowTitle,
+} from '../../components/candidate/CandidateFlowShell'
+import { useFlowRise } from '../../components/candidate/flowMotion'
+import SectionStepper from '../../components/candidate/exam/SectionStepper'
+import ExamButton from '../../components/candidate/exam/ExamButton'
 import { CANDIDATE_AI_LEVEL_LABELS, formatAiLevel } from '../../constants/aiLevels'
 import { buildAssessmentTermsRoute } from '../../routes/candidateRoutes'
 import { handleAssessmentStartResponse } from './assessmentStartNavigation'
-
-const UNKNOWN_SECTION_CONFIG = {
-  label: 'Section',
-  Icon: IconHelpCircle,
-  badgeClass: 'bg-surface-muted text-text-secondary border border-border-default',
-}
-
-const SECTION_CONFIG = {
-  mcq: {
-    label: 'MCQ',
-    Icon: IconListCheck,
-    badgeClass: 'bg-brand-tint text-brand-deep border border-brand-border',
-  },
-  ranking: {
-    label: 'Ranking',
-    Icon: IconArrowsSort,
-    badgeClass: 'bg-info-bg text-info border border-info-border',
-  },
-  free_text: {
-    label: 'Free text',
-    Icon: IconWriting,
-    badgeClass: 'bg-success-bg text-success border border-success-border',
-  },
-  adaptive_interview: {
-    label: 'Interview',
-    Icon: IconMessages,
-    badgeClass: 'bg-surface-muted text-text-secondary border border-border-default',
-  },
-  technical_task: {
-    label: 'Coding',
-    Icon: IconCode,
-    badgeClass: 'bg-warning-bg text-warning border border-warning-border',
-  },
-}
+import { setCandidateContext, trackCandidate } from '../../analytics/candidateAnalytics'
 
 export default function AssessmentLandingPage() {
   const { token } = useParams()
   const navigate = useNavigate()
+  const rise = useFlowRise()
 
   const [overview, setOverview] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [resuming, setResuming] = useState(false)
 
+  // First stage of the candidate funnel. /invite/:token redirects straight here,
+  // so this is where every candidate actually arrives.
+  useEffect(() => {
+    setCandidateContext({ stage: 'landing' })
+    trackCandidate('candidate_stage_viewed', { stage: 'landing' })
+  }, [])
+
   useEffect(() => {
     getAssessmentOverview(token)
       .then((data) => {
-        // CandidatePageShell applies this through CandidateThemeScope on render.
+        // CandidateFlowShell applies this through CandidateThemeScope on render.
         if (data?.org_branding) saveCandidateBranding(data.org_branding)
         setOverview(data)
+        setCandidateContext({
+          // Opaque org/assessment shape only — never the candidate's name.
+          instance_status: String(data?.instance_status || '').toUpperCase() || null,
+          section_count: (data?.sections || []).length,
+        })
       })
       .catch((e) => setError(e.message || 'Failed to load assessment'))
       .finally(() => setLoading(false))
   }, [token])
 
   const handleStart = () => {
+    trackCandidate('candidate_assessment_begun', { resumed: false })
     navigate(buildAssessmentTermsRoute(token), { state: { overview } })
   }
 
@@ -90,6 +70,7 @@ export default function AssessmentLandingPage() {
   const handleResume = async () => {
     setResuming(true)
     setError('')
+    trackCandidate('candidate_assessment_begun', { resumed: true })
     try {
       const data = await startAssessment(token, { terms_accepted: true })
       handleAssessmentStartResponse(data, { token, overview, navigate })
@@ -100,13 +81,19 @@ export default function AssessmentLandingPage() {
   }
 
   if (loading) {
-    return <CandidateCenteredLoadingState label="Loading assessment..." />
+    return <CandidateCenteredLoadingState label="Loading assessment…" />
   }
 
   if (!overview) {
-    return <CandidateCenteredErrorState title="Unable to load assessment" message={error || 'This link may be invalid or expired.'} />
+    return (
+      <CandidateCenteredErrorState
+        title="Unable to load assessment"
+        message={error || 'This link may be invalid or expired.'}
+      />
+    )
   }
 
+  const branding = loadCandidateBranding()
   const sections = overview.sections || []
   const totalMins = overview.total_duration_minutes
   const instanceStatus = String(overview.instance_status || '').toUpperCase()
@@ -115,135 +102,100 @@ export default function AssessmentLandingPage() {
   // An in-progress instance means the candidate already began (and accepted the
   // terms). This is a resume, not a fresh start.
   const resumable = instanceStatus === 'IN_PROGRESS'
+  const terminal = alreadySubmitted || expired
+
+  const action = terminal ? null : (
+    <ExamButton size="lg" sweep loading={resuming} onClick={resumable ? handleResume : handleStart}>
+      {resumable ? 'Resume assessment' : 'Begin assessment'}
+      <IconArrowRight size={17} />
+    </ExamButton>
+  )
 
   return (
-    <CandidatePageShell>
+    <CandidateFlowShell
+      branding={branding}
+      sections={sections}
+      currentIndex={-1}
+      subtitle={overview.assessment_name}
+      action={action}
+      actionNote={terminal ? null : (resumable
+        ? 'Your work is saved — you will pick up where you left off.'
+        : 'You will review the rules before anything starts.')}
+    >
+      <Motion.div {...rise(0)} className="flex flex-col gap-3">
+        <FlowEyebrow>
+          {overview.candidate_name ? `Hi ${overview.candidate_name}` : 'You have been invited'}
+        </FlowEyebrow>
+        <FlowTitle>{overview.assessment_name}</FlowTitle>
+        <FlowLead>
+          {terminal
+            ? alreadySubmitted
+              ? 'This assessment is submitted. Nothing further is needed from you — the hiring team has everything.'
+              : 'This assessment has expired. Contact the hiring team if you believe that is a mistake.'
+            : resumable
+              ? 'You have already started. Everything you answered is saved; pick up exactly where you left off.'
+              : `${sections.length} ${sections.length === 1 ? 'section' : 'sections'} of real work — no trick questions, no whiteboard. Read what is ahead, then start when you are ready.`}
+        </FlowLead>
+      </Motion.div>
 
-      <div className="text-center space-y-2">
-        <p className="text-brand-deep text-xs font-semibold uppercase tracking-widest">
-          Assessment
-        </p>
-        <h1 className="text-text-primary text-2xl font-bold tracking-tight leading-tight">
-          {overview.assessment_name}
-        </h1>
-        {overview.candidate_name && (
-          <p className="text-text-secondary text-sm">
-            Good luck,{' '}
-            <span className="text-text-primary font-medium">{overview.candidate_name}</span>
-          </p>
-        )}
-      </div>
-
-        {/* Meta pills */}
-        <div className="flex flex-wrap items-center justify-center gap-2.5">
-          {totalMins && (
-            <span className="inline-flex items-center gap-1.5 text-xs text-text-secondary bg-surface-muted border border-border-default px-2.5 py-1 rounded-full">
-              <IconClock size={12} />
-              {totalMins} min total
-            </span>
+      {!terminal && (totalMins || overview.ai_level || sections.length > 0) && (
+        <Motion.div {...rise(0.08)} className="mt-6 flex gap-3">
+          {sections.length > 0 && (
+            <FlowStat value={sections.length} label={sections.length === 1 ? 'Section' : 'Sections'} />
           )}
+          {totalMins && <FlowStat value={totalMins} unit="min" label="Total time" />}
           {overview.ai_level && (
-            <span className="inline-flex items-center gap-1.5 text-xs text-text-secondary bg-surface-muted border border-border-default px-2.5 py-1 rounded-full">
-              <IconBrain size={12} />
-              {formatAiLevel(overview.ai_level, CANDIDATE_AI_LEVEL_LABELS)}
-            </span>
+            <FlowStat
+              value={formatAiLevel(overview.ai_level, CANDIDATE_AI_LEVEL_LABELS)}
+              label="AI assistance"
+            />
           )}
-        </div>
+        </Motion.div>
+      )}
 
-        {/* Section list */}
-        {sections.length > 0 && (
-          <div className="border border-border-default rounded-xl overflow-hidden">
-            <div className="px-4 py-2.5 bg-surface-muted border-b border-border-default">
-              <p className="text-text-muted text-xs font-semibold uppercase tracking-widest">
-                {sections.length} {sections.length === 1 ? 'Section' : 'Sections'}
-              </p>
-            </div>
-            <ul className="bg-surface divide-y divide-border-default cand-section-list">
-              {sections.map((sec, i) => {
-                const cfg = SECTION_CONFIG[sec.content_type] || UNKNOWN_SECTION_CONFIG
-                const Icon = cfg.Icon
-                return (
-                  <li
-                    key={sec.id}
-                    className="flex items-center gap-3 px-4 py-3 cand-section-item"
-                    style={{ animationDelay: `${i * 55}ms` }}
-                  >
-                    <span className="text-text-faint text-xs font-mono w-4 shrink-0 text-center">
-                      {i + 1}
-                    </span>
-                    <span className="flex-1 text-text-primary text-sm font-medium truncate">
-                      {sec.name}
-                    </span>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span
-                        className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${cfg.badgeClass}`}
-                      >
-                        <Icon size={10} />
-                        {cfg.label}
-                      </span>
-                      {sec.timer_minutes && (
-                        <span className="text-text-muted text-xs flex items-center gap-1">
-                          <IconClock size={10} />
-                          {sec.timer_minutes}m
-                        </span>
-                      )}
-                    </div>
-                  </li>
-                )
-              })}
-            </ul>
-          </div>
-        )}
+      {!terminal && sections.length > 0 && (
+        <Motion.div {...rise(0.16)} className="mt-8 flex flex-col gap-3">
+          <FlowSectionLabel>What you will do</FlowSectionLabel>
+          <SectionStepper sections={sections} currentIndex={-1} />
+        </Motion.div>
+      )}
 
-        {/* Instructions */}
-        <div className="bg-surface-muted border border-border-default rounded-xl px-4 py-4 space-y-2.5">
-          <p className="text-text-muted text-xs font-semibold uppercase tracking-wide">
-            Before you begin
-          </p>
-          <ul className="space-y-2">
+      {!terminal && (
+        <Motion.div {...rise(0.24)} className="mt-8 flex flex-col gap-3">
+          <FlowSectionLabel>Before you begin</FlowSectionLabel>
+          <div className="grid gap-2.5 sm:grid-cols-2">
             {[
-              'Ensure a stable internet connection',
-              'Each section is timed — the coding IDE has a Pause button that stops the clock, but the section timer continues for other section types',
-              'Your answers are saved when you submit each section',
-            ].map((tip) => (
-              <li key={tip} className="flex items-start gap-2.5 text-text-secondary text-sm">
-                <span className="w-1 h-1 rounded-full bg-text-muted shrink-0 mt-2" />
-                {tip}
-              </li>
+              {
+                Icon: IconClock,
+                title: 'Each section is timed',
+                body: 'The coding workspace has a Pause button that stops its clock. Other section types cannot be paused.',
+              },
+              {
+                Icon: IconBrain,
+                title: 'Your work saves as you go',
+                body: 'Answers autosave while you type. Nothing is final until you submit a section.',
+              },
+            ].map((note) => (
+              <div key={note.title} className="rounded-2xl border border-border bg-surface px-4 py-4">
+                <div className="flex items-center gap-2">
+                  <note.Icon size={15} className="text-ember" />
+                  <p className="text-[13.5px] font-semibold text-text-primary">{note.title}</p>
+                </div>
+                <p className="mt-2 text-[13px] leading-[1.6] text-text-secondary">{note.body}</p>
+              </div>
             ))}
-          </ul>
-        </div>
-
-      {resumable && !alreadySubmitted && !expired && (
-        <div className="bg-brand-tint border border-brand-border rounded-xl px-4 py-3 text-center">
-          <p className="text-brand-deep text-sm font-medium">
-            You have an assessment in progress. Resume where you left off — your work is saved.
+          </div>
+          <p className="px-1 text-[12.5px] leading-[1.6] text-text-muted">
+            Use a stable connection, and keep this tab open during timed sections.
           </p>
+        </Motion.div>
+      )}
+
+      {error ? (
+        <div className="mt-6">
+          <FlowErrorBanner>{error}</FlowErrorBanner>
         </div>
-      )}
-
-      {error ? <CandidateErrorBanner>{error}</CandidateErrorBanner> : null}
-
-      {alreadySubmitted ? (
-        <p className="text-text-primary text-sm text-center">
-          You have already submitted this assessment. Nothing further is needed from you.
-        </p>
-      ) : expired ? (
-        <p className="text-text-primary text-sm text-center">
-          This assessment has expired. Contact the hiring team if you believe this is a mistake.
-        </p>
-      ) : resumable ? (
-      <CandidatePrimaryButton onClick={handleResume} disabled={resuming}>
-        {resuming ? 'Resuming…' : 'Resume Assessment'}
-        <IconChevronRight size={16} />
-      </CandidatePrimaryButton>
-      ) : (
-      <CandidatePrimaryButton onClick={handleStart}>
-        Begin Assessment
-        <IconChevronRight size={16} />
-      </CandidatePrimaryButton>
-      )}
-
-    </CandidatePageShell>
+      ) : null}
+    </CandidateFlowShell>
   )
 }
