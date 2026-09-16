@@ -1,3 +1,5 @@
+import { normalizeRequestPath, trackCandidate } from '../../analytics/candidateAnalytics'
+
 const CANDIDATE_RUNTIME_STORAGE_KEY = 'candidateRuntimeState'
 
 const JSON_HEADERS = {
@@ -5,6 +7,19 @@ const JSON_HEADERS = {
 }
 
 const parseJson = async (response) => response.json().catch(() => ({}))
+
+// Every candidate API call funnels through `requestCandidate`, so this is the
+// one place that sees every way the experience can break — offline, timed out,
+// 4xx, 5xx — without instrumenting each caller. `status: 0` is this module's own
+// convention for "no response at all" (see the catch below), which is what
+// separates a dead connection from a server that answered with a refusal.
+const reportRequestFailure = (url, error) => {
+  trackCandidate('candidate_api_error', {
+    path: normalizeRequestPath(url),
+    status: error?.status ?? null,
+    code: error?.code ?? null,
+  })
+}
 
 export const requestCandidate = async (url, token, options = {}, { unwrapData = true, timeoutMs } = {}) => {
   // Opt-in timeout. Without one a stalled mobile connection left a bare
@@ -28,6 +43,7 @@ export const requestCandidate = async (url, token, options = {}, { unwrapData = 
       const timeoutError = new Error('The request took too long. Check your connection and try again.')
       timeoutError.status = 0
       timeoutError.code = 'timeout'
+      reportRequestFailure(url, timeoutError)
       throw timeoutError
     }
     // A TypeError from fetch means no response at all (offline, DNS failure,
@@ -37,8 +53,10 @@ export const requestCandidate = async (url, token, options = {}, { unwrapData = 
       const networkError = new Error("We couldn't reach the server. Check your connection and try again.")
       networkError.status = 0
       networkError.code = 'network'
+      reportRequestFailure(url, networkError)
       throw networkError
     }
+    reportRequestFailure(url, err)
     throw err
   } finally {
     if (timer) clearTimeout(timer)
@@ -59,6 +77,7 @@ export const requestCandidate = async (url, token, options = {}, { unwrapData = 
       || (detail && typeof detail === 'object' ? detail.code : null)
       || null
     error.data = body?.data ?? null
+    reportRequestFailure(url, error)
     throw error
   }
 
