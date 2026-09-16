@@ -93,6 +93,19 @@ function RoleBasedRedirect() {
 }
 
 function App() {
+  // The dev-only candidate preview mounts each screen in its own MemoryRouter
+  // so the real pages' `useParams` resolve against fixtures. React Router
+  // refuses a Router inside a Router, so this one is returned BEFORE the app's
+  // BrowserRouter rather than as a route inside it. DEV-gated twice: `ExamPreview`
+  // is null in production, and the module is lazily imported.
+  if (ExamPreview && window.location.pathname === '/__exam-preview') {
+    return (
+      <Suspense fallback={<div className="min-h-screen bg-page" />}>
+        <ExamPreview />
+      </Suspense>
+    )
+  }
+
   return (
     <Router>
       <AuthProvider>
@@ -401,17 +414,6 @@ function App() {
         <Route path={CANDIDATE_ROUTES.terms} element={<AssessmentTermsPage />} />
         <Route path={CANDIDATE_ROUTES.launch} element={<AssessmentLaunchPage />} />
         <Route path={CANDIDATE_ROUTES.mcqSection} element={<McqSectionPage />} />
-        {/* Dev-only preview harness — must not ship as a public route. */}
-        {ExamPreview && (
-          <Route
-            path="/__exam-preview"
-            element={(
-              <Suspense fallback={<div className="min-h-screen bg-page" />}>
-                <ExamPreview />
-              </Suspense>
-            )}
-          />
-        )}
         {/* Guarded: this creates the org and flips is_onboarded, so it must not
             be reachable anonymously. */}
         <Route
