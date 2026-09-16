@@ -168,7 +168,7 @@ export default function AssessmentLandingPage() {
               {
                 Icon: IconClock,
                 title: 'Each section is timed',
-                body: 'The coding workspace has a Pause button that stops its clock. Other section types cannot be paused.',
+                body: 'The clock keeps running once a section has started, and it cannot be paused.',
               },
               {
                 Icon: IconBrain,

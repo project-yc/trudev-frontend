@@ -19,6 +19,7 @@
 import ExamShell, { ExamActionBar, ExamTopBar } from './exam/ExamShell'
 import { ConnectionStatus, ExamBrand } from './exam/ExamStatus'
 import { SectionStepperCompact } from './exam/SectionStepper'
+import ReportIssueLink from './ReportIssueLink'
 import { cn } from '../../lib/utils'
 
 // TruDev logo — served from /public
@@ -164,14 +165,19 @@ export default function CandidateFlowShell({
       contentClassName="max-w-[720px] pb-4"
       actionBar={action ? (
         <ExamActionBar>
+          {/* The report link lived in `CandidateFooter`, on the reasoning that
+              every candidate screen rendered that footer. These screens no
+              longer do — they have an action bar instead — so it is carried
+              here, or the flow would silently lose it on every page but the
+              error state. */}
+          <FlowFooterMark />
+          <ReportIssueLink className="shrink-0" />
+          <span className="flex-1" />
           {actionNote ? (
-            <span className="hidden text-[12.5px] leading-snug text-text-muted sm:inline">
+            <span className="hidden text-right text-[12.5px] leading-snug text-text-muted sm:inline">
               {actionNote}
             </span>
-          ) : (
-            <FlowFooterMark />
-          )}
-          <span className="flex-1" />
+          ) : null}
           {action}
         </ExamActionBar>
       ) : null}

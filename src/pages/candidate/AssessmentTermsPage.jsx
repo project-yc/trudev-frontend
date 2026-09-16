@@ -37,7 +37,7 @@ const RULES = [
   {
     Icon: IconClock,
     title: 'The clock starts when you do',
-    body: 'A section timer begins when you press Start on that section, not now. The coding workspace can be paused; other section types cannot.',
+    body: 'A section timer begins when you press Start on that section, not now. Once it starts it keeps running until you submit; sections cannot be paused.',
   },
   {
     Icon: IconDeviceFloppy,

@@ -231,7 +231,12 @@ function installMocks() {
 
 // ── Screens ─────────────────────────────────────────────────────────────────
 
-function AtRoute({ path, entry, children }) {
+// Every screen is mounted under a router, not just the ones that are pages.
+// `ReportIssueLink` — which the flow shell now renders on each screen — reads
+// `useParams` and `useLocation` to work out who is reporting, so a screen
+// mounted outside a router throws. Giving each entry the route it would really
+// be on also means the link resolves the identity it would really resolve.
+function AtRoute({ path = '*', entry = '/', children }) {
   return (
     <MemoryRouter initialEntries={[entry]}>
       <Routes>
@@ -407,7 +412,7 @@ function IntroPreview() {
       tips={[
         'You will work in a full editor in your browser — a real repository, not a text box.',
         'Starting a workspace takes up to a couple of minutes on a cold start. You only enter once it is genuinely reachable.',
-        'The workspace has a Pause button that stops the clock, and your work is saved when you pause.',
+        'Your work is saved as you go, but the section clock keeps running — it cannot be paused.',
       ]}
       actionContent="Start section"
       onAction={() => {}}
@@ -416,18 +421,20 @@ function IntroPreview() {
 }
 
 const SCREENS = [
-  { key: 'landing', group: 'Funnel', label: 'Landing', render: () => (
-    <AtRoute path={CANDIDATE_ROUTES.landing} entry="/assessment/preview"><AssessmentLandingPage /></AtRoute>
-  ) },
-  { key: 'terms', group: 'Funnel', label: 'Terms', render: () => (
-    <AtRoute path={CANDIDATE_ROUTES.terms} entry="/assessment/preview/terms"><AssessmentTermsPage /></AtRoute>
-  ) },
-  { key: 'demo', group: 'Funnel', label: 'Public demo', render: () => (
-    <AtRoute path={CANDIDATE_ROUTES.demo} entry="/demo/backend-screen"><PublicDemoPage /></AtRoute>
-  ) },
-  { key: 'intro', group: 'Funnel', label: 'Section intro', render: () => <IntroPreview /> },
+  { key: 'landing', group: 'Funnel', label: 'Landing',
+    path: CANDIDATE_ROUTES.landing, entry: '/assessment/preview',
+    render: () => <AssessmentLandingPage /> },
+  { key: 'terms', group: 'Funnel', label: 'Terms',
+    path: CANDIDATE_ROUTES.terms, entry: '/assessment/preview/terms',
+    render: () => <AssessmentTermsPage /> },
+  { key: 'demo', group: 'Funnel', label: 'Public demo',
+    path: CANDIDATE_ROUTES.demo, entry: '/demo/backend-screen',
+    render: () => <PublicDemoPage /> },
+  { key: 'intro', group: 'Funnel', label: 'Section intro',
+    path: CANDIDATE_ROUTES.launch, entry: '/assessment/preview/launch',
+    render: () => <IntroPreview /> },
 
-  { key: 'boot-waiting', group: 'Coding', label: 'Boot · waiting', render: () => (
+  { path: CANDIDATE_ROUTES.section, entry: '/candidate/assessment/preview/sections/sec-1', key: 'boot-waiting', group: 'Coding', label: 'Boot · waiting', render: () => (
     <BootPreview
       stage="waiting"
       elapsedMs={47000}
@@ -439,7 +446,7 @@ const SCREENS = [
       ]}
     />
   ) },
-  { key: 'boot-entering', group: 'Coding', label: 'Boot · entering', render: () => (
+  { path: CANDIDATE_ROUTES.section, entry: '/candidate/assessment/preview/sections/sec-1', key: 'boot-entering', group: 'Coding', label: 'Boot · entering', render: () => (
     <BootPreview
       stage="entering"
       elapsedMs={62000}
@@ -451,7 +458,7 @@ const SCREENS = [
     />
   ) },
 
-  { key: 'interview-intro', group: 'Interview', label: 'Intro', render: () => (
+  { path: CANDIDATE_ROUTES.section, entry: '/candidate/assessment/preview/sections/sec-1', key: 'interview-intro', group: 'Interview', label: 'Intro', render: () => (
     <CandidateSectionIntroScreen
       eyebrow="AI Interview Section"
       title="Follow-up interview about your code"
@@ -471,17 +478,17 @@ const SCREENS = [
       onAction={() => {}}
     />
   ) },
-  { key: 'interview-chat', group: 'Interview', label: 'Chat', render: () => <InterviewPreview variant="chat" /> },
-  { key: 'interview-thinking', group: 'Interview', label: 'Thinking', render: () => <InterviewPreview variant="thinking" /> },
-  { key: 'interview-ending', group: 'Interview', label: 'End confirm', render: () => <InterviewPreview variant="ending" /> },
-  { key: 'interview-farewell', group: 'Interview', label: 'Farewell', render: () => <InterviewPreview variant="farewell" /> },
-  { key: 'interview-complete', group: 'Interview', label: 'Complete', render: () => <InterviewPreview variant="complete" /> },
+  { path: CANDIDATE_ROUTES.section, entry: '/candidate/assessment/preview/sections/sec-1', key: 'interview-chat', group: 'Interview', label: 'Chat', render: () => <InterviewPreview variant="chat" /> },
+  { path: CANDIDATE_ROUTES.section, entry: '/candidate/assessment/preview/sections/sec-1', key: 'interview-thinking', group: 'Interview', label: 'Thinking', render: () => <InterviewPreview variant="thinking" /> },
+  { path: CANDIDATE_ROUTES.section, entry: '/candidate/assessment/preview/sections/sec-1', key: 'interview-ending', group: 'Interview', label: 'End confirm', render: () => <InterviewPreview variant="ending" /> },
+  { path: CANDIDATE_ROUTES.section, entry: '/candidate/assessment/preview/sections/sec-1', key: 'interview-farewell', group: 'Interview', label: 'Farewell', render: () => <InterviewPreview variant="farewell" /> },
+  { path: CANDIDATE_ROUTES.section, entry: '/candidate/assessment/preview/sections/sec-1', key: 'interview-complete', group: 'Interview', label: 'Complete', render: () => <InterviewPreview variant="complete" /> },
 
-  { key: 'mcq', group: 'Sections', label: 'MCQ', render: () => <SectionExperience contentType="mcq" /> },
-  { key: 'free_text', group: 'Sections', label: 'Written', render: () => <SectionExperience contentType="free_text" /> },
-  { key: 'ranking', group: 'Sections', label: 'Ranking', render: () => <SectionExperience contentType="ranking" /> },
+  { path: CANDIDATE_ROUTES.section, entry: '/candidate/assessment/preview/sections/sec-1', key: 'mcq', group: 'Sections', label: 'MCQ', render: () => <SectionExperience contentType="mcq" /> },
+  { path: CANDIDATE_ROUTES.section, entry: '/candidate/assessment/preview/sections/sec-1', key: 'free_text', group: 'Sections', label: 'Written', render: () => <SectionExperience contentType="free_text" /> },
+  { path: CANDIDATE_ROUTES.section, entry: '/candidate/assessment/preview/sections/sec-1', key: 'ranking', group: 'Sections', label: 'Ranking', render: () => <SectionExperience contentType="ranking" /> },
 
-  { key: 'complete', group: 'End states', label: 'Complete', render: () => (
+  { path: CANDIDATE_ROUTES.complete, entry: '/candidate/assessment/preview/complete', key: 'complete', group: 'End states', label: 'Complete', render: () => (
     <CandidateCompletionScreen
       message="Everything you worked on has been submitted. You can close this tab."
       sections={SECTIONS}
@@ -626,7 +633,11 @@ export default function ExamPreview() {
     <div className="relative">
       {/* Remount per screen: several of these own timers, boot state or an
           intro step, and carrying that across a switch shows the wrong one. */}
-      <div key={screen.key}>{screen.render()}</div>
+      <div key={screen.key}>
+        <AtRoute path={screen.path} entry={screen.entry}>
+          {screen.render()}
+        </AtRoute>
+      </div>
 
       {!bare && (
       <>
@@ -637,6 +648,12 @@ export default function ExamPreview() {
       <div className="fixed bottom-0 left-0 z-[9999] flex flex-col items-start gap-1.5 p-2.5">
         {open && (
           <div className="max-h-[70vh] w-[200px] overflow-y-auto rounded-xl border border-white/12 bg-black/90 p-1.5 shadow-2xl backdrop-blur-xl">
+            <a
+              href="/__exam-preview?sheet=1"
+              className="mb-1 block rounded-lg px-2 py-1.5 text-[12px] font-medium text-white/50 hover:bg-white/10 hover:text-white"
+            >
+              All screens ▦
+            </a>
             {groups.map((group) => (
               <div key={group} className="mb-1 last:mb-0">
                 <p className="px-2 py-1 text-[9.5px] uppercase tracking-[0.12em] text-white/30">
@@ -674,12 +691,6 @@ export default function ExamPreview() {
         </button>
       </div>
 
-      <a
-        href="/__exam-preview?sheet=1"
-        className="fixed bottom-3 right-3 z-[9999] rounded-xl border border-white/12 bg-black/88 px-2.5 py-1.5 text-[11px] font-medium text-white/50 shadow-2xl backdrop-blur-xl transition-colors hover:text-white"
-      >
-        All screens ▦
-      </a>
       </>
       )}
     </div>

@@ -21,6 +21,7 @@
 import { useEffect } from 'react'
 import { motion as Motion } from 'motion/react'
 import { IconArrowRight, IconCheck } from '@tabler/icons-react'
+import ReportIssueLink from './ReportIssueLink'
 import {
   CandidateThemeScope,
   loadCandidateBranding,
@@ -42,14 +43,21 @@ const TRUDEV_LOGO = '/Green Black Minimal Professional Letter D Business Corpora
 
 export function CandidateFooter() {
   return (
-    <div className="flex items-center justify-center gap-1.5">
-      <span className="text-text-faint text-xs">Powered by</span>
-      <img
-        src={TRUDEV_LOGO}
-        alt="TruDev"
-        className="h-4 w-auto object-contain rounded-sm opacity-50"
-      />
-      <span className="font-wordmark text-text-muted text-xs font-medium tracking-tight">TruDev</span>
+    <div className="flex flex-col items-center gap-2">
+      <div className="flex items-center justify-center gap-1.5">
+        <span className="text-text-faint text-xs">Powered by</span>
+        <img
+          src={TRUDEV_LOGO}
+          alt="TruDev"
+          className="h-4 w-auto object-contain rounded-sm opacity-50"
+        />
+        <span className="font-wordmark text-text-muted text-xs font-medium tracking-tight">TruDev</span>
+      </div>
+      {/* The one place a candidate can report a broken page, timer or
+          workspace. It used to be enough to put this here, because every
+          candidate screen rendered this footer; the flow shell now carries its
+          own copy for the screens that no longer do. */}
+      <ReportIssueLink />
     </div>
   )
 }
@@ -151,12 +159,17 @@ export function CandidateCompletionScreen({
 
       {details ? <Motion.div {...rise(0.18)} className="mt-6">{details}</Motion.div> : null}
 
-      <Motion.div {...rise(0.24)} className="mt-8 flex items-center justify-center gap-1.5 opacity-50">
-        <span className="text-[11px] text-text-faint">Powered by</span>
-        <img src={TRUDEV_LOGO} alt="" className="h-3.5 w-auto rounded-[2px] object-contain" />
-        <span className="font-wordmark text-[11px] font-medium tracking-tight text-text-muted">
-          TruDev
-        </span>
+      {/* This screen has no action bar to carry them, so the mark and the
+          report link sit under the content instead. */}
+      <Motion.div {...rise(0.24)} className="mt-8 flex flex-col items-center gap-2">
+        <div className="flex items-center gap-1.5 opacity-50">
+          <span className="text-[11px] text-text-faint">Powered by</span>
+          <img src={TRUDEV_LOGO} alt="" className="h-3.5 w-auto rounded-[2px] object-contain" />
+          <span className="font-wordmark text-[11px] font-medium tracking-tight text-text-muted">
+            TruDev
+          </span>
+        </div>
+        <ReportIssueLink />
       </Motion.div>
     </CandidateFlowShell>
   )
