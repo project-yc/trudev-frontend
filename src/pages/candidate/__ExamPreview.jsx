@@ -22,6 +22,7 @@ import AssessmentLandingPage from './AssessmentLandingPage'
 import AssessmentTermsPage from './AssessmentTermsPage'
 import PublicDemoPage from './PublicDemoPage'
 import CandidateMcqSectionExperience from '../../components/candidate/CandidateMcqSectionExperience'
+import CandidateExperienceFeedbackScreen from '../../components/candidate/CandidateExperienceFeedbackScreen'
 import { CandidateBootScreen } from '../../components/candidate/CandidateBootScreen'
 import InterviewChatScreen from './adaptive-interview/components/InterviewChatScreen'
 import InterviewStatusPanel from './adaptive-interview/components/InterviewStatusPanel'
@@ -488,6 +489,13 @@ const SCREENS = [
   { path: CANDIDATE_ROUTES.section, entry: '/candidate/assessment/preview/sections/sec-1', key: 'free_text', group: 'Sections', label: 'Written', render: () => <SectionExperience contentType="free_text" /> },
   { path: CANDIDATE_ROUTES.section, entry: '/candidate/assessment/preview/sections/sec-1', key: 'ranking', group: 'Sections', label: 'Ranking', render: () => <SectionExperience contentType="ranking" /> },
 
+  { path: CANDIDATE_ROUTES.complete, entry: '/candidate/assessment/preview/complete', key: 'feedback', group: 'End states', label: 'Experience survey', render: () => (
+    // Note: clicking "Send feedback" here fires a REAL submission to the live
+    // Google Form (see api/candidate/experienceFeedback.js) — this screen is
+    // wired the same way in the preview as it is in production, so a click is
+    // a click. Use "Skip" while browsing the gallery.
+    <CandidateExperienceFeedbackScreen branding={BRANDING} onDone={() => {}} />
+  ) },
   { path: CANDIDATE_ROUTES.complete, entry: '/candidate/assessment/preview/complete', key: 'complete', group: 'End states', label: 'Complete', render: () => (
     <CandidateCompletionScreen
       message="Everything you worked on has been submitted. You can close this tab."
