@@ -153,6 +153,12 @@ export const REVIEW_STATUS = {
   CLEAR: 'clear',
   INSUFFICIENT_EVIDENCE: 'insufficient_evidence',
   REQUIRES_HUMAN_REVIEW: 'requires_human_review',
+  // The session ended without the candidate clicking Submit (the clock ran out
+  // on a closed tab, or an operator closed it). Graded from the last saved
+  // state, shown with its score, never ranked.
+  NOT_SUBMITTED: 'not_submitted',
+  // Same ending, but the workspace was unreachable so nothing could be graded.
+  NO_WORK_CAPTURED: 'no_work_captured',
   PENDING: 'pending',
   FAILED: 'failed',
   NOT_STARTED: 'not_started',
@@ -162,6 +168,8 @@ export const REVIEW_STATUS_LABELS = {
   [REVIEW_STATUS.CLEAR]: 'Clear',
   [REVIEW_STATUS.INSUFFICIENT_EVIDENCE]: 'Insufficient evidence',
   [REVIEW_STATUS.REQUIRES_HUMAN_REVIEW]: 'Needs review',
+  [REVIEW_STATUS.NOT_SUBMITTED]: 'Timed out, not submitted',
+  [REVIEW_STATUS.NO_WORK_CAPTURED]: 'No work captured',
   [REVIEW_STATUS.PENDING]: 'Not graded yet',
   [REVIEW_STATUS.FAILED]: 'Grading failed',
   [REVIEW_STATUS.NOT_STARTED]: 'Not started',
@@ -176,6 +184,7 @@ export function reviewStatusLabel(status) {
 export function isUngradedReviewStatus(status) {
   return status === REVIEW_STATUS.PENDING
     || status === REVIEW_STATUS.FAILED
+    || status === REVIEW_STATUS.NO_WORK_CAPTURED
     || status === REVIEW_STATUS.NOT_STARTED;
 }
 

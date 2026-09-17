@@ -172,13 +172,25 @@ export function selectHiddenTestResult(report) {
  */
 export function needsHumanReview(reviewPolicy) {
   const status = reviewPolicy?.review_status;
-  return status === 'requires_human_review' || status === 'insufficient_evidence';
+  return status === 'requires_human_review'
+    || status === 'insufficient_evidence'
+    // The candidate never clicked Submit; the work was graded from the last
+    // saved state. A reviewer has to know that before reading the score.
+    || status === 'not_submitted';
 }
 
 const REVIEW_STATUS_LABELS = {
   clear: 'Clear',
   requires_human_review: 'Needs review',
   insufficient_evidence: 'Insufficient evidence',
+  not_submitted: 'Timed out, not submitted',
+};
+
+const REVIEW_REASON_PROSE = {
+  'submission:timed_out_not_submitted':
+    'The candidate never clicked Submit: the clock ran out and the work was graded from the last saved state.',
+  'submission:force_closed_not_submitted':
+    'The session was closed before the candidate submitted; graded from the last saved state.',
 };
 
 export function reviewStatusLabel(reviewPolicy) {
@@ -189,6 +201,7 @@ export function reviewStatusLabel(reviewPolicy) {
 
 /** Turns `verification:low_post_ai_accept_run_ratio` into readable prose. */
 export function humanizeReason(reason) {
+  if (REVIEW_REASON_PROSE[reason]) return REVIEW_REASON_PROSE[reason];
   const [scope, detail] = String(reason).split(':');
   const text = (detail || scope || '').replace(/_/g, ' ');
   return text.charAt(0).toUpperCase() + text.slice(1);
