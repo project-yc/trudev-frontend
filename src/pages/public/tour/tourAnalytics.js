@@ -24,7 +24,8 @@ export function initTourAnalytics({ ref, company, role }) {
   loading = import('posthog-js')
     .then(({ default: posthog }) => {
       posthog.init(key, {
-        api_host: import.meta.env.VITE_POSTHOG_HOST || 'https://us.i.posthog.com',
+        api_host: import.meta.env.VITE_POSTHOG_HOST || 'https://r.trudev.io',
+        defaults: '2026-05-30',
         autocapture: false,
         capture_pageview: false,
         capture_pageleave: false,

@@ -8,7 +8,10 @@
 //
 // PostHog is best-effort and blockable: us.i.posthog.com is on common ad-block
 // lists and plenty of corporate networks, so a candidate can silently produce no
-// events at all. Nothing here may ever become an input to grading.
+// events at all. VITE_POSTHOG_HOST now defaults to r.trudev.io, a reverse proxy
+// onto PostHog's ingestion API, specifically to dodge that blocklist — but a
+// stricter blocker or network could still catch it. Nothing here may ever
+// become an input to grading.
 //
 // Like ./tourAnalytics this does nothing unless VITE_POSTHOG_KEY is set — no
 // script is loaded and no request is made. When it is set:
@@ -59,7 +62,8 @@ function load() {
   loading = import('posthog-js')
     .then(({ default: posthog }) => {
       posthog.init(key, {
-        api_host: import.meta.env.VITE_POSTHOG_HOST || 'https://us.i.posthog.com',
+        api_host: import.meta.env.VITE_POSTHOG_HOST || 'https://r.trudev.io',
+        defaults: '2026-05-30',
         autocapture: false,
         capture_pageview: false,
         capture_pageleave: false,
