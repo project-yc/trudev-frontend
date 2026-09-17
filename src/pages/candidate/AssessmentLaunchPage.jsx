@@ -20,6 +20,7 @@ const CODING_TIPS = [
   'You will work in a full editor in your browser: a real repository, not a text box.',
   'Starting a workspace takes up to a couple of minutes on a cold start. You only enter once it is genuinely reachable.',
   'Your work is saved as you go, but the section clock keeps running. It cannot be paused.',
+  'If this section includes an AI assistant, using it is encouraged, and how you work with it is tracked as part of your evaluation. Other AI tools, a phone or outside help are not allowed.',
   'Turn off ad blockers and privacy extensions for this site while you work. They can interfere with the workspace.',
   'Close other tabs and apps you do not need. The workspace runs in your browser and works best with memory to spare.',
 ]

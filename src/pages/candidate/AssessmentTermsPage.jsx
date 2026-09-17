@@ -7,6 +7,7 @@ import {
   IconDeviceFloppy,
   IconEye,
   IconLock,
+  IconRobot,
   IconShieldOff,
 } from '@tabler/icons-react'
 import { getAssessmentOverview, startAssessment } from '../../api/candidate/assessmentSession'
@@ -31,7 +32,7 @@ import { handleAssessmentStartResponse } from './assessmentStartNavigation'
 import { setCandidateContext, trackCandidate } from '../../analytics/candidateAnalytics'
 
 // One card per rule rather than a bulleted grey box. These are the terms the
-// candidate is about to consent to, and at five items a bullet list is the
+// candidate is about to consent to, and at six items a bullet list is the
 // thing people scroll past — which is exactly the wrong outcome for the
 // monitoring disclosure.
 const RULES = [
@@ -62,6 +63,16 @@ const RULES = [
     Icon: IconShieldOff,
     title: 'Turn off ad blockers',
     body: 'Ad blockers and privacy extensions can interfere with the assessment. Turn them off for this site until you have finished.',
+  },
+  {
+    // Candidates were leaving the built-in assistant unused, and nothing said
+    // outside tools are off limits. Conditional on purpose: the AI level is set
+    // per section, and the workspace itself states exactly what that section has.
+    // 'Encouraged' and 'tracked', never 'required': an unused assistant is left
+    // out of the score, it is not marked down.
+    Icon: IconRobot,
+    title: 'Use the AI we give you, and only that',
+    body: 'Coding sections may include a built-in AI assistant. Using it is encouraged, and how you work with it is tracked as part of your evaluation. Other AI tools, a phone or outside help are not allowed.',
   },
 ]
 
@@ -170,7 +181,7 @@ export default function AssessmentTermsPage() {
         <FlowEyebrow>Before you start</FlowEyebrow>
         <FlowTitle>How this assessment works</FlowTitle>
         <FlowLead>
-          Five things worth knowing before the clock exists. Read them once. They are the
+          Six things worth knowing before the clock exists. Read them once. They are the
           whole agreement.
         </FlowLead>
       </Motion.div>
