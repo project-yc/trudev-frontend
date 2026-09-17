@@ -620,7 +620,7 @@ export default function CandidateAdaptiveInterviewExperience({
         pollStartedAtRef.current = 0
         setStatusMessage(
           'Your next question is taking longer than expected to prepare. '
-          + 'Please try again — your previous answers are saved.',
+          + 'Please try again. Your previous answers are saved.',
         )
         setScreen('unavailable')
         return
@@ -798,12 +798,12 @@ export default function CandidateAdaptiveInterviewExperience({
         // The backend collapses engine 422/403/503 into 503, so a genuine
         // outage is not a connectivity problem and must not be described as one.
         err?.status === 503
-          ? "The interviewer service is temporarily unavailable — your answer is still here. Try again in a moment."
+          ? "The interviewer service is temporarily unavailable. Your answer is still here. Try again in a moment."
           : err?.status === 422
-            ? "Your answer couldn't be accepted — it may be too long or empty. Edit it and try again."
+            ? "Your answer couldn't be accepted. It may be too long or empty. Edit it and try again."
             : err?.code === 'timeout'
               ? err.message
-              : "Your answer wasn't sent — check your connection and try again.",
+              : "Your answer wasn't sent. Check your connection and try again.",
       )
     }
   }, [
@@ -825,7 +825,7 @@ export default function CandidateAdaptiveInterviewExperience({
     clearTimeout(pollTimeoutRef.current)
     pollStartedAtRef.current = 0
     setTurnState('sending')
-    setStatusMessage("Time's up — submitting the answers you gave...")
+    setStatusMessage("Time's up. Submitting the answers you gave...")
     setScreen('expired')
     try {
       const result = await finishAdaptiveInterview(itemAttemptId, sectionToken)
@@ -999,7 +999,7 @@ export default function CandidateAdaptiveInterviewExperience({
       <ExamShell branding={branding} topBar={topBar}>
         <InterviewStatusPanel
           variant="complete"
-          message="Thanks — that's everything for this interview. Your answers have been submitted."
+          message="Thanks, that's everything for this interview. Your answers have been submitted."
           onRetry={null}
         />
       </ExamShell>

@@ -157,7 +157,7 @@ export default function CandidateReflectionScreen({
           A few questions about what you just built
         </h1>
         <p className="mt-3 text-[14px] leading-[1.7] text-text-secondary">
-          Your code is submitted and safe. These are in your own words — the code isn&apos;t shown
+          Your code is submitted and safe. These are in your own words. The code isn&apos;t shown
           here, so just describe what you did and why you did it that way.
         </p>
 

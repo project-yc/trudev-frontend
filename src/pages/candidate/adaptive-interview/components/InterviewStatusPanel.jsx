@@ -69,7 +69,7 @@ export default function InterviewStatusPanel({ variant, message, onRetry, onCont
             : isExpired
               ? 'This section has already been marked complete.'
               : isMisconfigured
-                ? 'Its settings need to be corrected before it can run. Please contact whoever sent you this assessment — this is not something you can fix.'
+                ? 'Its settings need to be corrected before it can run. Please contact whoever sent you this assessment. This is not something you can fix.'
                 : 'The interviewer service is temporarily unavailable.')}
         </p>
       </div>

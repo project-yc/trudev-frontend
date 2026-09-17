@@ -165,7 +165,7 @@ export default function QuestionStage({
         </>
       ) : (
         <div className="mt-5 rounded-xl border border-error-border bg-error-bg px-4 py-4 text-[13px] text-error">
-          This question didn&apos;t load. Move on to the next one — you can come back to it from
+          This question didn&apos;t load. Move on to the next one. You can come back to it from
           the navigator before you finish.
         </div>
       )}

@@ -17,9 +17,9 @@ import { setCandidateContext, trackCandidate } from '../../analytics/candidateAn
 // begin the workspace boot sequence") narrated the UI and said nothing about
 // the task.
 const CODING_TIPS = [
-  'You will work in a full editor in your browser — a real repository, not a text box.',
+  'You will work in a full editor in your browser: a real repository, not a text box.',
   'Starting a workspace takes up to a couple of minutes on a cold start. You only enter once it is genuinely reachable.',
-  'Your work is saved as you go, but the section clock keeps running — it cannot be paused.',
+  'Your work is saved as you go, but the section clock keeps running. It cannot be paused.',
 ]
 
 // Hand-off between the terms page and the coding section runtime for a

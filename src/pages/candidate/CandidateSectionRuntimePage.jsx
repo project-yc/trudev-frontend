@@ -443,7 +443,7 @@ export default function CandidateSectionRuntimePage() {
               via_gateway: viaGateway,
               waited_ms: Date.now() - bootStartedAt,
             })
-            setError('Your workspace did not start in time. Click Start Section to try again — your work is saved.')
+            setError('Your workspace did not start in time. Click Start Section to try again. Your work is saved.')
             bootStartedAtRef.current = 0
             setScreen('overview')
             return
@@ -651,13 +651,13 @@ export default function CandidateSectionRuntimePage() {
                 'Click Resume Section to relaunch your workspace from the saved snapshot; the clock restarts then.',
               ]
             : [
-                'You will work in a full editor in your browser — a real repository, not a text box.',
+                'You will work in a full editor in your browser: a real repository, not a text box.',
                 'Starting a workspace takes up to a couple of minutes on a cold start. You only enter once it is genuinely reachable.',
-                'Your work is saved as you go, but the section clock keeps running — it cannot be paused.',
+                'Your work is saved as you go, but the section clock keeps running. It cannot be paused.',
               ])
           : [
               'The clock for this section starts when you press the button below, not now.',
-              'The next section opens as soon as you submit this one — grading continues in the background.',
+              'The next section opens as soon as you submit this one. Grading continues in the background.',
             ]}
         error={error}
         actionContent={pausedReturn ? 'Resume Section' : 'Start Section'}

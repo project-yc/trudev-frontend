@@ -42,7 +42,7 @@ const RULES = [
   {
     Icon: IconDeviceFloppy,
     title: 'Answers save as you go',
-    body: 'Everything you type autosaves. Nothing is submitted — or final — until you confirm it yourself.',
+    body: 'Everything you type autosaves. Nothing is submitted, or final, until you confirm it yourself.',
   },
   {
     Icon: IconEye,
@@ -161,7 +161,7 @@ export default function AssessmentTermsPage() {
         <FlowEyebrow>Before you start</FlowEyebrow>
         <FlowTitle>How this assessment works</FlowTitle>
         <FlowLead>
-          Four things worth knowing before the clock exists. Read them once — they are the
+          Four things worth knowing before the clock exists. Read them once. They are the
           whole agreement.
         </FlowLead>
       </Motion.div>

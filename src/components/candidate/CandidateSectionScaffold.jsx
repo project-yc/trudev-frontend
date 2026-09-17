@@ -142,7 +142,7 @@ export function CandidateCompletionScreen({
         <FlowTitle className="mt-2">{title}</FlowTitle>
         <FlowLead>
           {message
-            || 'Your responses have been submitted. You can close this tab — nothing else is required from you.'}
+            || 'Your responses have been submitted. You can close this tab. Nothing else is required from you.'}
         </FlowLead>
       </Motion.div>
 

@@ -130,7 +130,7 @@ const summarizeAnswer = (contentType, question, value) => {
   const byId = new Map(options.map((option) => [String(option.id), option.text]))
 
   if (contentType === 'ranking') {
-    return value.map((id, i) => `${i + 1}. ${byId.get(String(id)) ?? '—'}`).join('  ·  ')
+    return value.map((id, i) => `${i + 1}. ${byId.get(String(id)) ?? '-'}`).join('  ·  ')
   }
 
   return value.map((id) => byId.get(String(id))).filter(Boolean).join(' · ')
@@ -519,8 +519,8 @@ export default function CandidateMcqSectionExperience({
           rules={[
             hasTimer
               ? 'The clock starts when you press the button below.'
-              : 'This section is untimed — take the time you need.',
-            'Answer in any order — use the navigator to move between questions.',
+              : 'This section is untimed. Take the time you need.',
+            'Answer in any order. Use the navigator to move between questions.',
             'Your answers save automatically. Nothing is final until you submit.',
           ]}
           error={error}

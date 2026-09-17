@@ -96,8 +96,8 @@ export default function Composer({
           aria-label="Your answer"
           placeholder={
             listening
-              ? 'Listening — speak, then edit anything that came out wrong...'
-              : 'Type your answer — plain, informal language is fine...'
+              ? 'Listening: speak, then edit anything that came out wrong...'
+              : 'Type your answer. Plain, informal language is fine...'
           }
           style={{ minHeight: MIN_TEXTAREA_PX, maxHeight: MAX_TEXTAREA_PX }}
           className={cn(

@@ -25,7 +25,7 @@ export default function McqSectionPage() {
     return (
       <CandidateCenteredErrorState
         title="Session expired"
-        message="Your assessment session could not be found. This can happen after a refresh or a long period of inactivity — please use your original invite link to restart."
+        message="Your assessment session could not be found. This can happen after a refresh or a long period of inactivity. Please use your original invite link to restart."
       />
     )
   }

@@ -49,7 +49,7 @@ export function ConnectionStatus() {
 
   return (
     <span
-      title={online ? 'Connected' : 'No connection — your typed text stays on screen; reconnect before sending'}
+      title={online ? 'Connected' : 'No connection. Your typed text stays on screen; reconnect before sending'}
       className={cn('flex h-8 w-8 items-center justify-center rounded-lg', online ? 'text-text-muted' : 'text-error')}
     >
       {online ? <IconWifi size={16} /> : <IconWifiOff size={16} />}

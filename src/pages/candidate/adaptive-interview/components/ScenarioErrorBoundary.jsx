@@ -42,7 +42,7 @@ export default class ScenarioErrorBoundary extends Component {
       return (
         <p className="text-[12px] leading-[18px] text-text-muted">
           This reference panel could not be displayed. You can still answer the
-          question — ask for anything you need in your answer.
+          question. Ask for anything you need in your answer.
         </p>
       )
     }

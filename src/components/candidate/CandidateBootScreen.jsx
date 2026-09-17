@@ -142,7 +142,7 @@ export function CandidateBootScreen({
         </h1>
         <p className="text-[13.5px] leading-relaxed text-text-secondary">
           We are starting a private container just for you. This usually takes under a minute,
-          and can take a few on a cold start — leave this tab open.
+          and can take a few on a cold start. Leave this tab open.
         </p>
       </Motion.div>
 

@@ -119,7 +119,7 @@ export default function AssessmentLandingPage() {
       subtitle={overview.assessment_name}
       action={action}
       actionNote={terminal ? null : (resumable
-        ? 'Your work is saved — you will pick up where you left off.'
+        ? 'Your work is saved. You will pick up where you left off.'
         : 'You will review the rules before anything starts.')}
     >
       <Motion.div {...rise(0)} className="flex flex-col gap-3">
@@ -130,11 +130,11 @@ export default function AssessmentLandingPage() {
         <FlowLead>
           {terminal
             ? alreadySubmitted
-              ? 'This assessment is submitted. Nothing further is needed from you — the hiring team has everything.'
+              ? 'This assessment is submitted. Nothing further is needed from you. The hiring team has everything.'
               : 'This assessment has expired. Contact the hiring team if you believe that is a mistake.'
             : resumable
               ? 'You have already started. Everything you answered is saved; pick up exactly where you left off.'
-              : `${sections.length} ${sections.length === 1 ? 'section' : 'sections'} of real work — no trick questions, no whiteboard. Read what is ahead, then start when you are ready.`}
+              : `${sections.length} ${sections.length === 1 ? 'section' : 'sections'} of real work: no trick questions, no whiteboard. Read what is ahead, then start when you are ready.`}
         </FlowLead>
       </Motion.div>
 
