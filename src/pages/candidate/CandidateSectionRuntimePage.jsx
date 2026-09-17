@@ -654,6 +654,8 @@ export default function CandidateSectionRuntimePage() {
                 'You will work in a full editor in your browser: a real repository, not a text box.',
                 'Starting a workspace takes up to a couple of minutes on a cold start. You only enter once it is genuinely reachable.',
                 'Your work is saved as you go, but the section clock keeps running. It cannot be paused.',
+                'Turn off ad blockers and privacy extensions for this site while you work. They can interfere with the workspace.',
+                'Close other tabs and apps you do not need. The workspace runs in your browser and works best with memory to spare.',
               ])
           : [
               'The clock for this section starts when you press the button below, not now.',

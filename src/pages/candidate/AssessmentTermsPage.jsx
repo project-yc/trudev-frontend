@@ -7,6 +7,7 @@ import {
   IconDeviceFloppy,
   IconEye,
   IconLock,
+  IconShieldOff,
 } from '@tabler/icons-react'
 import { getAssessmentOverview, startAssessment } from '../../api/candidate/assessmentSession'
 import { beginProvisioning } from '../../api/candidate/candidateProvisioning'
@@ -30,7 +31,7 @@ import { handleAssessmentStartResponse } from './assessmentStartNavigation'
 import { setCandidateContext, trackCandidate } from '../../analytics/candidateAnalytics'
 
 // One card per rule rather than a bulleted grey box. These are the terms the
-// candidate is about to consent to, and at four items a bullet list is the
+// candidate is about to consent to, and at five items a bullet list is the
 // thing people scroll past — which is exactly the wrong outcome for the
 // monitoring disclosure.
 const RULES = [
@@ -53,6 +54,14 @@ const RULES = [
     Icon: IconLock,
     title: 'This link is yours alone',
     body: 'Do not share your invite link or any assessment content with anyone else.',
+  },
+  {
+    // A content blocker silently dropped a real candidate's whole activity
+    // record once. The routes it matched were renamed, but a strict list can
+    // still interfere, so it is asked for up front rather than after the fact.
+    Icon: IconShieldOff,
+    title: 'Turn off ad blockers',
+    body: 'Ad blockers and privacy extensions can interfere with the assessment. Turn them off for this site until you have finished.',
   },
 ]
 
@@ -161,7 +170,7 @@ export default function AssessmentTermsPage() {
         <FlowEyebrow>Before you start</FlowEyebrow>
         <FlowTitle>How this assessment works</FlowTitle>
         <FlowLead>
-          Four things worth knowing before the clock exists. Read them once. They are the
+          Five things worth knowing before the clock exists. Read them once. They are the
           whole agreement.
         </FlowLead>
       </Motion.div>
@@ -169,8 +178,15 @@ export default function AssessmentTermsPage() {
       <Motion.div {...rise(0.08)} className="mt-7 flex flex-col gap-3">
         <FlowSectionLabel>Rules &amp; monitoring disclosure</FlowSectionLabel>
         <div className="grid gap-2.5 sm:grid-cols-2">
-          {RULES.map((rule) => (
-            <div key={rule.title} className="rounded-2xl border border-border bg-surface px-4 py-4">
+          {RULES.map((rule, index) => (
+            <div
+              key={rule.title}
+              // An odd count leaves the last card alone in a two-column grid;
+              // let it span the row instead of sitting beside an empty cell.
+              className={`rounded-2xl border border-border bg-surface px-4 py-4 ${
+                RULES.length % 2 === 1 && index === RULES.length - 1 ? 'sm:col-span-2' : ''
+              }`}
+            >
               <div className="flex items-center gap-2">
                 <rule.Icon size={15} className="text-ember" />
                 <p className="text-[13.5px] font-semibold text-text-primary">{rule.title}</p>
