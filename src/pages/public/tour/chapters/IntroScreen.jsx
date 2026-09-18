@@ -16,7 +16,7 @@ const PREVIEW = [
   ['04', 'More formats', 'MCQ, ranking, written answers and more interview modes.'],
 ];
 
-export default function IntroScreen({ companyPhrase, role, narrow, onStart, onSkipToReport }) {
+export default function IntroScreen({ companyPhrase, role, onStart, onSkipToReport }) {
   const reduce = useReducedMotion();
   const rise = delay => (reduce ? {} : {
     initial: { opacity: 0, y: 16 },
@@ -33,7 +33,7 @@ export default function IntroScreen({ companyPhrase, role, narrow, onStart, onSk
         style={{ background: 'radial-gradient(closest-side, rgba(255,107,0,0.28), transparent)' }}
       />
 
-      <div className="relative mx-auto flex min-h-full max-w-[980px] flex-col justify-center px-5 py-12 sm:px-8">
+      <div className="relative mx-auto flex min-h-full max-w-[980px] flex-col justify-center px-5 py-8 sm:px-8 sm:py-12">
         <Motion.div {...rise(0)}>
           <Eyebrow>A 3-minute walkthrough · no signup</Eyebrow>
         </Motion.div>
@@ -53,28 +53,13 @@ export default function IntroScreen({ companyPhrase, role, narrow, onStart, onSk
         </Motion.p>
 
         <Motion.div {...rise(0.18)} className="mt-8 flex flex-wrap items-center gap-3">
-          {narrow ? (
-            <PrimaryButton onClick={onSkipToReport}>
-              See the report <ArrowIcon />
-            </PrimaryButton>
-          ) : (
-            <>
-              <PrimaryButton onClick={onStart}>
-                Walk through as a candidate · 3 min <ArrowIcon />
-              </PrimaryButton>
-              <GhostButton onClick={onSkipToReport}>Skip to the report · 45 sec</GhostButton>
-            </>
-          )}
+          <PrimaryButton onClick={onStart}>
+            Walk through as a candidate · 3 min <ArrowIcon />
+          </PrimaryButton>
+          <GhostButton onClick={onSkipToReport}>Skip to the report · 45 sec</GhostButton>
         </Motion.div>
 
-        {narrow && (
-          <p className="mt-4 max-w-[480px] text-[12.5px] leading-[1.6]" style={{ color: 'var(--lp-fg-faint)' }}>
-            The candidate&apos;s workspace needs a bigger screen. Open this link on a laptop to walk through
-            the coding task and the interview too.
-          </p>
-        )}
-
-        <Motion.ol {...rise(0.26)} className="mt-12 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Motion.ol {...rise(0.26)} className="mt-8 grid grid-cols-2 gap-3 sm:mt-12 lg:grid-cols-4">
           {PREVIEW.map(([n, title, line]) => (
             <li
               key={n}

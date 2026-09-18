@@ -34,7 +34,7 @@ const TREE = buildTree(TASK_FILES);
 const ALL_DIR_PATHS = allDirectoryPaths(TASK_FILES);
 const noop = () => {};
 
-function EditorPane({ path, content }) {
+export function EditorPane({ path, content, compact = false }) {
   const language = LANGUAGE_BY_PATH[path];
   const extensions = useMemo(() => {
     const build = LANGUAGE_EXTENSIONS[language];
@@ -44,7 +44,7 @@ function EditorPane({ path, content }) {
   // Markdown opens as a rendered preview, the way candidates read the ticket.
   if (language === 'markdown') {
     return (
-      <div className="h-full overflow-y-auto px-8 py-6" style={{ background: VSC.editorBg }}>
+      <div className={`h-full overflow-y-auto ${compact ? 'px-4 py-4' : 'px-8 py-6'}`} style={{ background: VSC.editorBg }}>
         <div className="max-w-[760px]">
           <VscMarkdown>{content}</VscMarkdown>
         </div>
@@ -74,7 +74,7 @@ function EditorPane({ path, content }) {
   );
 }
 
-function GradeOverlay({ grade }) {
+export function GradeOverlay({ grade }) {
   const reduce = useReducedMotion();
   return (
     <Motion.div
@@ -113,7 +113,13 @@ function GradeOverlay({ grade }) {
   );
 }
 
-export default function CodingChapter({ view, company, role, stepKey }) {
+// `fixed`: the phone tour draws this same workspace on a laptop-sized canvas
+// and moves a camera over it (CodingChapterCompact + ZoomStage). Tailwind's
+// breakpoints follow the real viewport, which on a phone would hide the
+// explorer and the AI level, so that mode pins the laptop arrangement instead.
+// The grade card is left to the host there: inside a scaled canvas it would be
+// too small to read.
+export default function CodingChapter({ view, company, role, stepKey, fixed = false }) {
   const remaining = useCountdown(74 * 60 + 12, !view.submitted);
 
   const [expanded, setExpanded] = useState(() => new Set(ALL_DIR_PATHS));
@@ -169,7 +175,7 @@ export default function CodingChapter({ view, company, role, stepKey }) {
           {TASK_META.id} {TASK_META.title}
         </span>
         <div className="ml-auto flex shrink-0 items-center gap-2">
-          <span className="hidden items-center gap-1.5 rounded px-2 py-1 text-[11.5px] md:flex" style={{ background: '#4D4D4D', color: '#CCCCCC' }}>
+          <span className={`${fixed ? 'flex' : 'hidden md:flex'} items-center gap-1.5 rounded px-2 py-1 text-[11.5px]`} style={{ background: '#4D4D4D', color: '#CCCCCC' }}>
             AI: {TASK_META.aiLevel}
           </span>
           <span className="flex items-center gap-1.5 rounded px-2 py-1 text-[12px] tabular-nums" style={{ background: '#4D4D4D', color: '#E7E7E7' }}>
@@ -198,7 +204,7 @@ export default function CodingChapter({ view, company, role, stepKey }) {
         {/* Explorer */}
         <aside
           data-tour="explorer"
-          className="hidden w-[210px] shrink-0 flex-col border-r xl:flex"
+          className={fixed ? 'flex w-[170px] shrink-0 flex-col border-r' : 'hidden w-[210px] shrink-0 flex-col border-r xl:flex'}
           style={{ background: VSC.sidebarBg, borderColor: VSC.panelBorder }}
         >
           <SidebarSectionHeader>Explorer</SidebarSectionHeader>
@@ -282,7 +288,7 @@ export default function CodingChapter({ view, company, role, stepKey }) {
             </div>
             <div className="relative min-h-0 flex-1 overflow-hidden">
               <EditorPane path={activePath} content={content} />
-              <AnimatePresence>{view.grade && <GradeOverlay grade={view.grade} />}</AnimatePresence>
+              <AnimatePresence>{view.grade && !fixed && <GradeOverlay grade={view.grade} />}</AnimatePresence>
             </div>
           </div>
 
@@ -294,7 +300,7 @@ export default function CodingChapter({ view, company, role, stepKey }) {
         {/* AI assistant */}
         <aside
           data-tour="ai-chat"
-          className="w-[290px] shrink-0 border-l xl:w-[320px]"
+          className={fixed ? 'w-[250px] shrink-0 border-l' : 'w-[290px] shrink-0 border-l xl:w-[320px]'}
           style={{ borderColor: VSC.panelBorder }}
         >
           <MockAiChat messages={view.chat} thinking={view.aiThinking} />

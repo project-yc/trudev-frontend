@@ -12,9 +12,19 @@ export default function MockAiChat({ messages, thinking }) {
   const reduce = useReducedMotion();
   const scrollerRef = useRef(null);
 
+  // Bring the START of the newest message into view, not the end of the pane:
+  // in a short pane (the phone workspace) scrolling to the bottom showed only
+  // the tail of the reply's code block and hid the reply itself. Where the
+  // message is shorter than the pane this clamps to the bottom, as before.
+  const lastRef = useRef(null);
   useEffect(() => {
     const el = scrollerRef.current;
-    if (el) el.scrollTo({ top: el.scrollHeight, behavior: reduce ? 'auto' : 'smooth' });
+    if (!el) return;
+    const last = lastRef.current;
+    const top = last && !thinking
+      ? last.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop - 8
+      : el.scrollHeight;
+    el.scrollTo({ top, behavior: reduce ? 'auto' : 'smooth' });
   }, [messages.length, thinking, reduce]);
 
   return (
@@ -45,6 +55,7 @@ export default function MockAiChat({ messages, thinking }) {
           {messages.map((message, i) => (
             <Motion.div
               key={i}
+              ref={i === messages.length - 1 ? lastRef : undefined}
               initial={reduce ? false : { opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}

@@ -1,4 +1,5 @@
 import { motion as Motion, useReducedMotion } from 'motion/react';
+import { ChevronDown } from 'lucide-react';
 import { ArrowIcon, DISPLAY, MONO } from '../../adaptive-interview/components/primitives';
 
 /**
@@ -11,7 +12,20 @@ import { ArrowIcon, DISPLAY, MONO } from '../../adaptive-interview/components/pr
  * delay alone (see .tour-spotlight in index.css) — position beats timing.
  * The chapter's live "insight" (captured events, what the interviewer read)
  * sits under the copy.
+ *
+ * Phones get two other shapes (see useTourLayout):
+ *  - `sheet`: pinned UNDER the stage, so Back/Next sit under the thumb. It
+ *    folds to a one-line title the moment the visitor starts scrolling the
+ *    stage, handing that height back to the stage; tapping the title reopens
+ *    it, and every new step arrives open. It stays first in DOM order.
+ *  - `side`: a narrow column beside the stage, for a phone on its side.
  */
+const SHELL = {
+  default: 'flex max-h-[46vh] shrink-0 flex-col border-b lg:max-h-none lg:w-[340px] lg:border-b-0 lg:border-r',
+  side: 'flex w-[264px] shrink-0 flex-col overflow-y-auto border-r',
+  sheet: 'relative z-30 order-last flex shrink-0 flex-col rounded-t-2xl border-t shadow-[0_-12px_32px_-12px_rgba(0,0,0,0.7)]',
+};
+
 export default function NarratorPanel({
   chapterNumber,
   chapterLabel,
@@ -24,16 +38,25 @@ export default function NarratorPanel({
   canGoBack,
   nextLabel,
   insight,
+  layout = 'default',
+  folded = false,
+  onToggleFold,
 }) {
   const reduce = useReducedMotion();
+  const sheet = layout === 'sheet';
+  const side = layout === 'side';
 
   return (
     <aside
       aria-label="Tour guide"
-      className="flex max-h-[46vh] shrink-0 flex-col border-b lg:max-h-none lg:w-[340px] lg:border-b-0 lg:border-r"
+      className={SHELL[layout]}
       style={{ background: 'var(--lp-surface)', borderColor: 'var(--lp-line)' }}
     >
-      <div className="shrink-0 px-5 pb-4 pt-4 lg:px-6 lg:pt-6">
+      <div
+        className={sheet
+          ? 'shrink-0 px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-3'
+          : side ? 'shrink-0 px-4 pb-3 pt-3' : 'shrink-0 px-5 pb-4 pt-4 lg:px-6 lg:pt-6'}
+      >
         <div
           className="flex items-center justify-between text-[10.5px] uppercase"
           style={{ fontFamily: MONO, letterSpacing: '0.14em', color: 'var(--lp-ember-bright)' }}
@@ -60,18 +83,44 @@ export default function NarratorPanel({
           transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
           aria-live="polite"
         >
-          <h2
-            className="mt-4 text-[19px] leading-[1.2] lg:text-[21px]"
-            style={{ fontFamily: DISPLAY, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--lp-fg)' }}
-          >
-            {step.title}
-          </h2>
-          <p className="mt-2.5 text-[14px] leading-[1.62]" style={{ color: 'var(--lp-fg-dim)' }}>
-            {step.body}
-          </p>
+          {sheet ? (
+            <button
+              type="button"
+              onClick={onToggleFold}
+              aria-expanded={!folded}
+              className="mt-2.5 flex w-full items-start gap-3 text-left"
+            >
+              <h2
+                className={`min-w-0 flex-1 text-[16.5px] leading-[1.22] ${folded ? 'truncate' : ''}`}
+                style={{ fontFamily: DISPLAY, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--lp-fg)' }}
+              >
+                {step.title}
+              </h2>
+              <ChevronDown
+                aria-hidden="true"
+                className={`mt-0.5 h-4 w-4 shrink-0 transition-transform duration-200 ${folded ? 'rotate-180' : ''}`}
+                style={{ color: 'var(--lp-fg-faint)' }}
+              />
+            </button>
+          ) : (
+            <h2
+              className={side ? 'mt-3 text-[16px] leading-[1.22]' : 'mt-4 text-[19px] leading-[1.2] lg:text-[21px]'}
+              style={{ fontFamily: DISPLAY, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--lp-fg)' }}
+            >
+              {step.title}
+            </h2>
+          )}
+          {!(sheet && folded) && (
+            <p
+              className={sheet || side ? 'mt-1.5 text-[13px] leading-[1.55]' : 'mt-2.5 text-[14px] leading-[1.62]'}
+              style={{ color: 'var(--lp-fg-dim)' }}
+            >
+              {(sheet || side) && step.bodyCompact ? step.bodyCompact : step.body}
+            </p>
+          )}
         </Motion.div>
 
-        <div className="mt-5 flex items-center gap-2">
+        <div className={`flex items-center gap-2 ${sheet || side ? 'mt-3' : 'mt-5'}`}>
           <button
             type="button"
             onClick={onBack}
@@ -84,10 +133,10 @@ export default function NarratorPanel({
           <button
             type="button"
             onClick={onNext}
-            className={`group inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-full px-4 text-[13px] font-semibold text-[#180C03] transition-all hover:brightness-110 active:scale-[0.98] ${done ? 'tour-next-ready' : ''}`}
+            className={`group inline-flex h-10 min-w-0 flex-1 items-center justify-center gap-2 rounded-full px-4 text-[13px] font-semibold text-[#180C03] transition-all hover:brightness-110 active:scale-[0.98] ${done ? 'tour-next-ready' : ''}`}
             style={{ background: 'linear-gradient(135deg, var(--lp-ember-soft), var(--lp-ember))' }}
           >
-            {nextLabel}
+            <span className="truncate">{nextLabel}</span>
             <ArrowIcon className="transition-transform group-hover:translate-x-0.5" />
           </button>
         </div>

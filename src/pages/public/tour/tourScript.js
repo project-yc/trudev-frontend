@@ -47,42 +47,52 @@ const CODING_INITIAL = {
   signals: [],
   submitted: false,
   grade: null,
+  // Which part of the workspace the latest beat happened in. The desktop stage
+  // shows every pane at once and ignores it; the phone stage shows one pane at
+  // a time and follows it.
+  focus: 'code',
 };
 
 function openTab(view, path) {
   return {
     ...view,
     active: path,
+    focus: 'code',
     openTabs: view.openTabs.includes(path) ? view.openTabs : [...view.openTabs, path],
   };
 }
+
+const withFocus = (view, focus) => ({ ...view, focus });
 
 function reduceCoding(view, beat) {
   switch (beat.t) {
     case 'open':
       return openTab(view, beat.path);
     case 'cmd':
-      return { ...view, terminal: [...view.terminal, { kind: 'cmd', text: beat.text }] };
+      return { ...view, focus: 'terminal', terminal: [...view.terminal, { kind: 'cmd', text: beat.text }] };
     case 'out':
-      return { ...view, terminal: [...view.terminal, ...beat.lines] };
+      return { ...view, focus: 'terminal', terminal: [...view.terminal, ...beat.lines] };
     case 'user':
-      return { ...view, chat: [...view.chat, { role: 'user', text: beat.text }] };
+      return { ...view, focus: 'ai', chat: [...view.chat, { role: 'user', text: beat.text }] };
     case 'thinking':
-      return { ...view, aiThinking: beat.on };
+      return { ...view, focus: 'ai', aiThinking: beat.on };
     case 'ai':
       return {
         ...view,
+        focus: 'ai',
         aiThinking: false,
         chat: [...view.chat, { role: 'ai', text: beat.text, code: beat.code, applied: false }],
       };
     case 'apply': {
       const chat = view.chat.map((m, i) => (i === view.chat.length - 1 ? { ...m, applied: true } : m));
-      return openTab({
+      // Stays on the chat: a phone shows one pane, and the reply with its
+      // "Applied" tick is what this beat is about.
+      return withFocus(openTab({
         ...view,
         chat,
         files: { ...view.files, 'app/engine.py': ENGINE_AI },
         modified: [...new Set([...view.modified, 'app/engine.py'])],
-      }, 'app/engine.py');
+      }, 'app/engine.py'), 'ai');
     }
     case 'edit':
       return openTab({
@@ -96,9 +106,9 @@ function reduceCoding(view, beat) {
         signals: [...view.signals, { name: beat.name, detail: beat.detail, at: beat.at }],
       };
     case 'submit':
-      return { ...view, submitted: true };
+      return { ...view, focus: 'code', submitted: true };
     case 'grade':
-      return { ...view, grade: beat.result };
+      return { ...view, focus: 'code', grade: beat.result };
     default:
       return view;
   }
@@ -261,6 +271,8 @@ const INTERVIEW_STEPS = [
     id: 'scenario',
     title: 'Real artifacts, not trivia',
     body: "Priya explains the restart case precisely. The next question puts a 2am production log in the side panel and asks what's going on.",
+    // Phones have no side panel: the log sits in a drawer under the chat instead.
+    bodyCompact: "Priya explains the restart case precisely. The next question comes with a 2am production log, shown under the question, and asks what's going on.",
     beats: [
       { t: 'type', wait: 400, text: A1_FULL },
       { t: 'send', wait: sendWait(A1_FULL) },
@@ -365,11 +377,11 @@ export const CHAPTERS = [
   { id: 'intro', label: 'Start', steps: [{ id: 'intro', beats: [] }], screen: true },
   {
     id: 'task', label: 'The task', short: 'Task', steps: CODING_STEPS,
-    initial: CODING_INITIAL, reduce: reduceCoding, desktopOnly: true,
+    initial: CODING_INITIAL, reduce: reduceCoding,
   },
   {
     id: 'interview', label: 'The interview', short: 'Interview', steps: INTERVIEW_STEPS,
-    initial: INTERVIEW_INITIAL, reduce: reduceInterview, desktopOnly: true,
+    initial: INTERVIEW_INITIAL, reduce: reduceInterview,
   },
   {
     id: 'report', label: 'Your report', short: 'Report', steps: REPORT_STEPS,
@@ -383,9 +395,8 @@ export const CHAPTERS = [
 ];
 
 /** Every (chapter, step) the viewer can land on, in order. */
-export function buildPositions(narrow) {
+export function buildPositions() {
   return CHAPTERS
-    .filter(chapter => !(narrow && chapter.desktopOnly))
     .flatMap(chapter => chapter.steps.map((step, stepIndex) => ({
       chapterId: chapter.id,
       stepIndex,

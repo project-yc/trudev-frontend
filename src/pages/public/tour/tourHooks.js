@@ -62,6 +62,28 @@ export function useMediaQuery(query) {
   return matches;
 }
 
+/**
+ * Which arrangement the tour uses at this viewport.
+ *
+ *  - `default`: the guide beside the stage from 1024px, above it on tablets.
+ *  - `sheet`:   a phone held upright. The guide is a sheet pinned under the
+ *               stage, where the thumb is, and folds down to its title once
+ *               the visitor starts scrolling the stage.
+ *  - `side`:    a phone on its side. Too short to stack anything, so the guide
+ *               is a narrow column beside the stage. Decided on height as well
+ *               as width: a sideways phone is 800px+ wide and would otherwise
+ *               get the desktop workspace in a 160px strip.
+ *
+ * `compact` is true for both phone layouts: chapters swap their multi-pane
+ * desktop stage for a single-column one.
+ */
+export function useTourLayout() {
+  const narrow = useMediaQuery('(max-width: 767px)');
+  const short = useMediaQuery('(max-height: 559px) and (max-width: 1023px) and (orientation: landscape)');
+  const layout = short ? 'side' : narrow ? 'sheet' : 'default';
+  return { layout, compact: layout !== 'default' };
+}
+
 /** Seconds counting down from `start` once a second, stopping at zero. */
 export function useCountdown(start, running = true) {
   const [remaining, setRemaining] = useState(start);

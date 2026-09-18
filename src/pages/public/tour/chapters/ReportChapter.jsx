@@ -70,6 +70,56 @@ function HandoffBand() {
   );
 }
 
+/**
+ * The shortlist on a phone: the seven-column table needs 640px, so it became a
+ * sideways scroll with Interview, AI usage and Review (the columns that tell
+ * the two candidates apart) off screen. Two cards side by side keep the
+ * comparison the step is about visible at a glance.
+ */
+function ShortlistCards({ candidates, selectedId, onSelect }) {
+  return (
+    <div data-tour="report-shortlist" className="grid scroll-mt-4 grid-cols-2 gap-2.5">
+      {candidates.map(candidate => {
+        const selected = candidate.id === selectedId;
+        const review = REVIEW[candidate.row.review];
+        const rows = [
+          ['Visible', <span key="v" className="font-semibold tabular-nums text-success">{candidate.row.visible}</span>],
+          ['Hidden', <span key="h" className={cn('font-semibold tabular-nums', candidate.row.hidden === '10/10' ? 'text-success' : 'text-warning')}>{candidate.row.hidden}</span>],
+          ['Coding', <span key="c" className={cn('font-semibold tabular-nums', scoreTone(candidate.row.coding))}>{candidate.row.coding}</span>],
+          ['Interview', <span key="i" className={cn('font-semibold tabular-nums', scoreTone(candidate.row.interview))}>{candidate.row.interview}</span>],
+          ['AI usage', <span key="a" className="text-text-secondary">{candidate.row.aiPattern}</span>],
+        ];
+        return (
+          <button
+            key={candidate.id}
+            type="button"
+            onClick={() => onSelect(candidate.id)}
+            aria-pressed={selected}
+            className={cn(
+              'min-w-0 rounded-[14px] border bg-surface p-3 text-left shadow-card transition-colors',
+              selected ? 'border-brand bg-brand-tint-light' : 'border-border-default',
+            )}
+          >
+            <p className="truncate text-[13.5px] font-semibold text-text-primary">{candidate.name}</p>
+            <dl className="mt-2 flex flex-col gap-1.5 text-[12.5px]">
+              {rows.map(([label, value]) => (
+                <div key={label} className="flex items-baseline justify-between gap-2">
+                  <dt className="font-mono text-[9.5px] uppercase tracking-[0.08em] text-text-muted">{label}</dt>
+                  <dd className="truncate">{value}</dd>
+                </div>
+              ))}
+            </dl>
+            <p className="mt-2.5 flex items-center gap-1.5 border-t border-border-subtle pt-2 text-[12px] text-text-secondary">
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: review.dot }} />
+              {review.label}
+            </p>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function Shortlist({ candidates, selectedId, onSelect }) {
   return (
     <div data-tour="report-shortlist" className="scroll-mt-4 overflow-hidden rounded-[14px] border border-border-default bg-surface shadow-card">
@@ -229,12 +279,14 @@ function PanelCard({ tourId, title, subtitle, children }) {
   );
 }
 
-export default function ReportChapter({ view, stepKey, role }) {
+export default function ReportChapter({ view, stepKey, role, compact = false }) {
   const candidates = useMemo(() => buildCandidates(role), [role]);
   // A row click overrides the script until the step changes.
   const [picked, setPicked] = useState({ stepKey: null, id: null });
   const selectedId = picked.stepKey === stepKey && picked.id ? picked.id : view.selected;
   const candidate = candidates.find(c => c.id === selectedId) || candidates[0];
+
+  const ShortlistView = compact ? ShortlistCards : Shortlist;
 
   const scrollerRef = useRef(null);
   const [scrolled, setScrolled] = useState(false);
@@ -262,11 +314,11 @@ export default function ReportChapter({ view, stepKey, role }) {
                 {role} <span className="font-normal text-text-muted">·</span> this week&apos;s candidates
               </h1>
               <p className="mt-2 max-w-[560px] text-[14px] leading-[20px] text-text-secondary">
-                Evidence from each assessment — signal by section, not a verdict. Click a row to switch candidates.
+                Evidence from each assessment — signal by section, not a verdict. {compact ? 'Tap a card' : 'Click a row'} to switch candidates.
               </p>
             </div>
 
-            <Shortlist
+            <ShortlistView
               candidates={candidates}
               selectedId={candidate.id}
               onSelect={id => setPicked({ stepKey, id })}

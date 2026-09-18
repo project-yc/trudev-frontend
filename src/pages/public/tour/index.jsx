@@ -7,8 +7,9 @@
 // report panels. No backend calls; every value comes from ./fixtures.
 //
 // Personalised by ?c=<company>&r=<role>, attributed by ?ref=<prospect id>
-// (see tourConfig.js and tourAnalytics.js). Under 768px the coding and
-// interview chapters are skipped: the workspace doesn't fit a phone.
+// (see tourConfig.js and tourAnalytics.js). Most emailed links are opened on a
+// phone, so every chapter plays there too: see useTourLayout in tourHooks.js
+// for the three arrangements, and CodingChapterCompact for the workspace.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -18,7 +19,7 @@ import { BOOKING_URL, DEFAULT_COMPANY, DEFAULT_ROLE, LIVE_DEMO_SLUG } from './to
 import { readTourParams } from './tourParams';
 import { initTourAnalytics, track } from './tourAnalytics';
 import { CHAPTERS, buildPositions, foldChapterView, getChapter } from './tourScript';
-import { useBeatPlayer, useMediaQuery } from './tourHooks';
+import { useBeatPlayer, useTourLayout } from './tourHooks';
 import TourTopBar from './components/TourTopBar';
 import NarratorPanel from './components/NarratorPanel';
 import Spotlight from './components/Spotlight';
@@ -27,6 +28,7 @@ import GroundingPanel from './components/GroundingPanel';
 import IntroScreen from './chapters/IntroScreen';
 import OutroScreen from './chapters/OutroScreen';
 import CodingChapter from './chapters/CodingChapter';
+import CodingChapterCompact from './chapters/CodingChapterCompact';
 import InterviewChapter from './chapters/InterviewChapter';
 import ReportChapter from './chapters/ReportChapter';
 import FormatsChapter from './chapters/FormatsChapter';
@@ -50,21 +52,18 @@ export default function ProductTourPage() {
   const companyPhrase = params.company || DEFAULT_COMPANY;
   const companyName = params.company || 'Your company';
 
-  const narrow = useMediaQuery('(max-width: 767px)');
-  const positions = useMemo(() => buildPositions(narrow), [narrow]);
-  const railChapters = useMemo(
-    () => CHAPTERS.filter(chapter => !chapter.screen && !(narrow && chapter.desktopOnly)),
-    [narrow],
-  );
+  const { layout, compact } = useTourLayout();
+  const positions = useMemo(() => buildPositions(), []);
+  const railChapters = useMemo(() => CHAPTERS.filter(chapter => !chapter.screen), []);
 
   const [at, setAt] = useState({ chapterId: 'intro', stepIndex: 0 });
   const [visited, setVisited] = useState(() => new Set(['intro']));
   const stageRef = useRef(null);
 
-  // A position that doesn't exist at this width (a desktop-only chapter on a
-  // phone) falls forward to the report.
-  let index = positions.findIndex(p => p.chapterId === at.chapterId && p.stepIndex === at.stepIndex);
-  if (index === -1) index = positions.findIndex(p => p.chapterId === 'report');
+  const index = Math.max(
+    positions.findIndex(p => p.chapterId === at.chapterId && p.stepIndex === at.stepIndex),
+    0,
+  );
   const position = positions[index];
   const chapter = getChapter(position.chapterId);
   const step = chapter.steps[position.stepIndex];
@@ -75,6 +74,13 @@ export default function ProductTourPage() {
     () => foldChapterView(chapter, position.stepIndex, shown),
     [chapter, position.stepIndex, shown],
   );
+
+  // The phone sheet folds to its title once the visitor starts moving the
+  // stage, and opens again on every new step. Touch and wheel rather than
+  // `scroll`: the terminal and the chat scroll themselves as beats play.
+  const [foldedFor, setFoldedFor] = useState(null);
+  const folded = layout === 'sheet' && foldedFor === stepKey;
+  const foldSheet = useCallback(() => setFoldedFor(stepKey), [stepKey]);
 
   const goTo = useCallback((nextIndex) => {
     const target = positions[Math.min(Math.max(nextIndex, 0), positions.length - 1)];
@@ -103,8 +109,8 @@ export default function ProductTourPage() {
     if (openedRef.current) return;
     openedRef.current = true;
     initTourAnalytics(params);
-    track('tour_opened', { company: params.company || null, role: params.role || null, narrow });
-  }, [params, narrow]);
+    track('tour_opened', { company: params.company || null, role: params.role || null, layout });
+  }, [params, layout]);
 
   useEffect(() => {
     track('tour_step_viewed', {
@@ -133,7 +139,7 @@ export default function ProductTourPage() {
     return () => { document.title = previous; };
   }, []);
 
-  const Screen = CHAPTER_SCREENS[chapter.id];
+  const Screen = compact && chapter.id === 'task' ? CodingChapterCompact : CHAPTER_SCREENS[chapter.id];
   const next = positions[index + 1];
   const nextChapter = next && next.chapterId !== chapter.id ? getChapter(next.chapterId) : null;
   const nextLabel = !next
@@ -143,8 +149,10 @@ export default function ProductTourPage() {
       : 'Next';
 
   let insight = null;
-  if (chapter.id === 'task') insight = <SignalRail signals={view.signals} />;
-  if (chapter.id === 'interview') insight = <GroundingPanel />;
+  // On a phone the captured events live inside the workspace (its own tab),
+  // and the sheet has no room for a second pane.
+  if (chapter.id === 'task' && !compact) insight = <SignalRail signals={view.signals} />;
+  if (chapter.id === 'interview' && layout !== 'sheet') insight = <GroundingPanel />;
 
   return (
     <div className="adaptive-lp flex h-[100dvh] flex-col overflow-hidden">
@@ -162,7 +170,6 @@ export default function ProductTourPage() {
           <IntroScreen
             companyPhrase={companyPhrase}
             role={role}
-            narrow={narrow}
             onStart={() => goTo(index + 1)}
             onSkipToReport={skipToReport}
           />
@@ -182,7 +189,7 @@ export default function ProductTourPage() {
       )}
 
       {Screen && (
-        <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+        <div className={`flex min-h-0 flex-1 ${layout === 'side' ? 'flex-row' : 'flex-col lg:flex-row'}`}>
           {/* First in DOM order on purpose — see NarratorPanel's comment.
               Above the stage on mobile, to its left on desktop, so the reader
               meets the copy before the stage either way. */}
@@ -198,6 +205,9 @@ export default function ProductTourPage() {
             canGoBack={index > 0}
             nextLabel={nextLabel}
             insight={insight}
+            layout={layout}
+            folded={folded}
+            onToggleFold={() => setFoldedFor(folded ? null : stepKey)}
           />
           {/* Not a <main>: the reused interview screen renders its own. */}
           <div
@@ -205,12 +215,15 @@ export default function ProductTourPage() {
             role="region"
             aria-label={chapter.label}
             className="relative min-h-0 min-w-0 flex-1 overflow-hidden"
+            onTouchMoveCapture={layout === 'sheet' && !folded ? foldSheet : undefined}
+            onWheelCapture={layout === 'sheet' && !folded ? foldSheet : undefined}
           >
             <Screen
               view={view}
               stepKey={stepKey}
               company={companyName}
               role={role}
+              compact={compact}
             />
             <Spotlight stageRef={stageRef} target={step.target} stepKey={stepKey} />
           </div>
