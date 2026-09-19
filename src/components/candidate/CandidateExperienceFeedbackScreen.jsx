@@ -135,13 +135,17 @@ export default function CandidateExperienceFeedbackScreen({ branding, onDone }) 
       </Motion.div>
 
       <Motion.div {...rise(0.16)} className="mt-6 flex flex-col gap-3">
-        <FlowSectionLabel>Anything feel off, confusing, or broken?</FlowSectionLabel>
+        {/* Two-sided on purpose: the note is required now, and a prompt that only
+            asks what broke forces a candidate who had a good time to answer a
+            question that assumes otherwise. The hint keeps the bug-report nudge,
+            which is where the most useful feedback has come from. */}
+        <FlowSectionLabel>We&apos;d love your honest take. What went well, and what could be better?</FlowSectionLabel>
         <textarea
           value={notes}
           onChange={(event) => setNotes(event.target.value)}
           disabled={sending}
           rows={4}
-          placeholder="A sentence is plenty. If it all worked, say so."
+          placeholder="Be as blunt as you like. If something confused you or broke, we really want to know."
           required
           aria-required="true"
           className={cn(
