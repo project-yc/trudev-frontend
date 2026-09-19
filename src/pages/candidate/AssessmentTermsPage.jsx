@@ -49,7 +49,7 @@ const RULES = [
   {
     Icon: IconEye,
     title: 'Some sections are monitored',
-    body: 'This assessment may include a monitored or AI-assisted interview section. Stay on this tab and avoid switching windows during timed sections.',
+    body: 'This assessment may include a monitored or AI-assisted interview section. Coding sections open in full screen: leaving it or switching tabs is recorded and shown to the reviewer, and pasting from outside the workspace is blocked.',
   },
   {
     Icon: IconLock,
