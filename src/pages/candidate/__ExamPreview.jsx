@@ -493,7 +493,8 @@ const SCREENS = [
     // Note: clicking "Send feedback" here fires a REAL submission to the live
     // Google Form (see api/candidate/experienceFeedback.js) — this screen is
     // wired the same way in the preview as it is in production, so a click is
-    // a click. Use "Skip" while browsing the gallery.
+    // a click. There is no Skip any more (both fields are required since
+    // 2026-09-19), so do not press Send while browsing the gallery.
     <CandidateExperienceFeedbackScreen branding={BRANDING} onDone={() => {}} />
   ) },
   { path: CANDIDATE_ROUTES.complete, entry: '/candidate/assessment/preview/complete', key: 'complete', group: 'End states', label: 'Complete', render: () => (

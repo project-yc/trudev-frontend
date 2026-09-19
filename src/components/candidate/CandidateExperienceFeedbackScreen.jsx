@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// CandidateExperienceFeedbackScreen — one optional, ungraded question about the
+// CandidateExperienceFeedbackScreen: two required, ungraded questions about the
 // experience itself, shown once after the whole assessment is done.
 //
 // This is NOT the graded per-coding-task reflection (CandidateReflectionScreen)
@@ -9,10 +9,15 @@
 // how many sections the assessment had, and its answers go to a Google Form,
 // not the assessment record — see api/candidate/experienceFeedback.js.
 //
-// Skippable on purpose: the assessment is already submitted by the time this
-// renders, so nothing about it can gate or slow down the candidate, and a
-// forced third form after a graded reflection (and possibly an issue report)
-// would mostly produce resentful, low-quality answers.
+// REQUIRED since 2026-09-19 (product decision): there is no Skip, and both the
+// rating and the note must be filled in before Send enables. It used to be
+// skippable, on the reasoning that a forced form yields resentful answers; too
+// few candidates answered for the feedback to be useful.
+//
+// What must still hold: this page can never TRAP a candidate. Their assessment
+// is already submitted. The send is fire-and-forget (failures are swallowed in
+// the API module) and is raced against a short timeout here, so a slow or
+// blocked request to Google still lets them through.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useState } from 'react'
@@ -30,6 +35,8 @@ import { useFlowRise } from './flowMotion'
 import ExamButton from './exam/ExamButton'
 
 const RATING_SCALE = [1, 2, 3, 4, 5]
+// Long enough to deliver on a normal connection, short enough that nobody waits.
+const SEND_TIMEOUT_MS = 4000
 
 function RatingRow({ value, onChange, disabled }) {
   return (
@@ -72,7 +79,7 @@ function RatingRow({ value, onChange, disabled }) {
 /**
  * @param branding  org branding from session storage, same as every other
  *                  flow screen.
- * @param onDone    called once the candidate has sent or skipped — the page
+ * @param onDone    called once the candidate has sent their feedback. The page
  *                  hosting this decides what "done" means (usually: show the
  *                  real completion screen).
  */
@@ -82,10 +89,23 @@ export default function CandidateExperienceFeedbackScreen({ branding, onDone }) 
   const [notes, setNotes] = useState('')
   const [sending, setSending] = useState(false)
 
+  const trimmedNotes = notes.trim()
+  const missing = rating == null
+    ? (trimmedNotes ? 'Pick a rating to continue.' : 'Pick a rating and add a short note to continue.')
+    : (trimmedNotes ? null : 'Add a short note to continue.')
+
   const send = async () => {
+    if (missing || sending) return
     setSending(true)
-    await submitExperienceFeedback({ rating, notes: notes.trim() })
-    onDone()
+    try {
+      await Promise.race([
+        submitExperienceFeedback({ rating, notes: trimmedNotes }),
+        new Promise((resolve) => window.setTimeout(resolve, SEND_TIMEOUT_MS)),
+      ])
+    } finally {
+      // Whatever happened to the request, the candidate moves on.
+      onDone()
+    }
   }
 
   return (
@@ -93,24 +113,19 @@ export default function CandidateExperienceFeedbackScreen({ branding, onDone }) 
       branding={branding}
       subtitle="Quick feedback"
       action={(
-        <div className="flex items-center gap-2">
-          <ExamButton variant="quiet" onClick={onDone} disabled={sending}>
-            Skip
-          </ExamButton>
-          <ExamButton sweep disabled={rating == null || sending} loading={sending} onClick={send}>
-            Send feedback
-            <IconArrowRight size={16} />
-          </ExamButton>
-        </div>
+        <ExamButton sweep disabled={Boolean(missing) || sending} loading={sending} onClick={send}>
+          Send feedback
+          <IconArrowRight size={16} />
+        </ExamButton>
       )}
-      actionNote={rating == null ? 'Pick a rating to send, or skip.' : null}
+      actionNote={missing}
     >
       <Motion.div {...rise(0)} className="flex flex-col gap-3">
         <FlowEyebrow>One last thing</FlowEyebrow>
         <FlowTitle>How was this, really?</FlowTitle>
         <FlowLead>
-          Two quick questions about the experience itself, not your answers. Totally optional, and
-          it has nothing to do with your score.
+          Two quick questions about the experience itself, not your answers. It has nothing to do
+          with your score.
         </FlowLead>
       </Motion.div>
 
@@ -120,13 +135,15 @@ export default function CandidateExperienceFeedbackScreen({ branding, onDone }) 
       </Motion.div>
 
       <Motion.div {...rise(0.16)} className="mt-6 flex flex-col gap-3">
-        <FlowSectionLabel>Anything feel off, confusing, or broken? (optional)</FlowSectionLabel>
+        <FlowSectionLabel>Anything feel off, confusing, or broken?</FlowSectionLabel>
         <textarea
           value={notes}
           onChange={(event) => setNotes(event.target.value)}
           disabled={sending}
           rows={4}
-          placeholder="A sentence is plenty."
+          placeholder="A sentence is plenty. If it all worked, say so."
+          required
+          aria-required="true"
           className={cn(
             'w-full resize-y rounded-[10px] border border-border bg-surface-muted px-4 py-3',
             'text-[14px] leading-[1.7] text-text-primary placeholder:text-text-faint',
