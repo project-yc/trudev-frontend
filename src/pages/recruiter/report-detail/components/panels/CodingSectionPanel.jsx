@@ -17,6 +17,7 @@ import {
   DIMENSION_ORDER,
   formatDuration,
   formatPercent,
+  formatSectionTiming,
   formatTimelineTimestamp,
   getProctoringFlags,
   getScoreTone,
@@ -372,6 +373,10 @@ export function CodingSectionPanel({ report }) {
               label="AI level"
               value={coding.aiAccessLevel ? formatAiLevel(coding.aiAccessLevel) : null}
             />
+            {/* How long the section took, beside its limit. A score earned in
+                35 of 90 minutes and one earned at the buzzer are different
+                facts about a candidate. */}
+            <StatLine label="Time taken" value={formatSectionTiming(coding.timing)} />
             <StatLine
               label="Coding tasks in this assessment"
               value={coding.sessionCount || null}

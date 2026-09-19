@@ -110,6 +110,8 @@ export function selectCodingReport(report) {
     // weightings).
     aiAccessLevel: detail.ai_access_level || report?.ai_access_level || null,
     reviewPolicy: detail.review_policy || report?.review_policy || null,
+    // Wall-clock time from section start to submit, with the limit beside it.
+    timing: detail.section_timing || null,
     topInsight: detail.top_insight || report?.top_insight || '',
     // Tags on the coding task — the "Task skills covered" chips, minus the
     // task-authoring metadata that is not a skill.
@@ -205,6 +207,25 @@ export function humanizeReason(reason) {
   const [scope, detail] = String(reason).split(':');
   const text = (detail || scope || '').replace(/_/g, ' ');
   return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+const wholeMinutes = seconds => Math.max(1, Math.round(seconds / 60));
+
+/**
+ * "41 min of 90 min" for the score block. Wall-clock, not active time: it is
+ * read beside the limit, so it has to be the same kind of number. Says so when
+ * the clock ran out or the session was closed instead of a Submit click, since
+ * "90 min of 90 min" alone reads as a candidate who used their time well.
+ */
+export function formatSectionTiming(timing) {
+  const taken = toFiniteNumber(timing?.time_taken_seconds);
+  if (taken === null || taken < 0) return null;
+  const limit = toFiniteNumber(timing?.time_limit_seconds);
+  let text = taken < 60 ? 'under 1 min' : `${wholeMinutes(taken)} min`;
+  if (limit !== null && limit > 0) text += ` of ${wholeMinutes(limit)} min`;
+  if (timing?.outcome === 'TIMEOUT') text += ' (timed out, not submitted)';
+  else if (timing?.outcome === 'FORCE_CLOSED') text += ' (closed, not submitted)';
+  return text;
 }
 
 export function formatPercent(value) {
